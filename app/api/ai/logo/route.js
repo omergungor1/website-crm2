@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/isAdmin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
@@ -62,8 +61,6 @@ async function uploadToStorage(supabase, imageUrl, projectId, index) {
 
 export async function POST(request) {
   const supabase = await createClient();
-  const { user } = await getCurrentUser(supabase);
-  if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
   const { business_name, sector, services, color_palette, project_id } =
     await request.json();

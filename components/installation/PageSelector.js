@@ -46,11 +46,10 @@ export default function PageSelector({ value, onChange }) {
             type="button"
             onClick={() => toggle(page)}
             disabled={page === "Ana Sayfa"}
-            className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
-              safeValue.includes(page) || page === "Ana Sayfa"
+            className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${safeValue.includes(page) || page === "Ana Sayfa"
                 ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
                 : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
-            } disabled:cursor-not-allowed disabled:opacity-80`}
+              } disabled:cursor-not-allowed disabled:opacity-80`}
           >
             {page}
           </button>
@@ -65,7 +64,7 @@ export default function PageSelector({ value, onChange }) {
           onChange={(e) => setCustomInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustom())}
           className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-          placeholder="Özel sayfa adı (ör: Hizmet Bölgeleri)"
+          placeholder="Özel sayfa adı (ör: Galeri Sayfası)"
         />
         <button
           type="button"

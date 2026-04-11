@@ -1,12 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/isAdmin";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
 export async function POST(request) {
-  const supabase = await createClient();
-  const { user } = await getCurrentUser(supabase);
-  if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
   const { business_name, sector, services, service_regions, brand_tone, main_goal } =
     await request.json();

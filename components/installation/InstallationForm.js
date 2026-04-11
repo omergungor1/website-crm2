@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import WorkingHours from "./WorkingHours";
 import ColorPalette from "./ColorPalette";
 import LogoSection from "./LogoSection";
@@ -29,21 +29,22 @@ const MAIN_GOALS = [
 ];
 
 const WIZARD_STEPS = [
-  { id: 1, title: "Temel Bilgiler" },
-  { id: 2, title: "Çalışma Saatleri" },
-  { id: 3, title: "Hizmetler" },
-  { id: 4, title: "Hizmet Bölgeleri" },
-  { id: 5, title: "İçerik" },
-  { id: 6, title: "Domain Adayları" },
-  { id: 7, title: "Marka Kimliği" },
-  { id: 8, title: "Renk Paleti" },
-  { id: 9, title: "Logo" },
+  { id: 1,  title: "Temel Bilgiler" },
+  { id: 2,  title: "Çalışma Saatleri" },
+  { id: 3,  title: "Hizmetler" },
+  { id: 4,  title: "Hizmet Bölgeleri" },
+  { id: 5,  title: "İçerik" },
+  { id: 6,  title: "Domain Adayları" },
+  { id: 7,  title: "Marka Kimliği" },
+  { id: 8,  title: "Renk Paleti" },
+  { id: 9,  title: "Logo" },
   { id: 10, title: "Site Görselleri" },
   { id: 11, title: "Sayfalar" },
   { id: 12, title: "Menü ve Ürünler" },
   { id: 13, title: "Sosyal Medya" },
+  { id: 14, title: "Sizi Tanıyalım" },
 ];
-const TOTAL_STEPS = WIZARD_STEPS.length;
+const TOTAL_STEPS = WIZARD_STEPS.length; // 14
 
 // ─── Yardımcı Fonksiyonlar ───────────────────────────────────────────────────
 
@@ -68,7 +69,10 @@ function formatPhone(raw, type) {
 }
 
 function normalizeDomain(input) {
-  return input
+  if (!input) return "";
+
+  let d = input
+    // TR karakter dönüşümü (büyük → küçük öncesi)
     .replace(/Ç/g, "C").replace(/ç/g, "c")
     .replace(/Ğ/g, "G").replace(/ğ/g, "g")
     .replace(/İ/g, "I").replace(/ı/g, "i")
@@ -76,7 +80,24 @@ function normalizeDomain(input) {
     .replace(/Ş/g, "S").replace(/ş/g, "s")
     .replace(/Ü/g, "U").replace(/ü/g, "u")
     .toLowerCase()
-    .trim();
+    // Protokol ve yol kısımlarını temizle
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/.*$/, "")
+    // Tüm boşlukları (içteki dahil) sil
+    .replace(/\s+/g, "")
+    // Geçersiz karakterleri sil — domain'de sadece harf, rakam, tire, nokta olabilir
+    .replace(/[^a-z0-9.\-]/g, "")
+    // Ardışık noktaları tek noktaya indir
+    .replace(/\.{2,}/g, ".")
+    // Baştaki ve sondaki nokta/tireyi temizle
+    .replace(/^[.\-]+|[.\-]+$/g, "");
+
+  if (!d) return "";
+
+  // Uzantı yoksa .com ekle (örn: "mybusiness" → "mybusiness.com")
+  if (!d.includes(".")) d = d + ".com";
+
+  return d;
 }
 
 // ─── Domain Yardımcı Bileşenleri (bileşen dışında — focus kaybı olmaz) ────────
@@ -173,8 +194,38 @@ export default function InstallationForm({
   const supabase = createClient();
 
   // Wizard navigasyon
-  const [step, setStep] = useState(0);
+  // Lazy initializer: form yalnızca client-side render edildiği için (PublicInstallationForm
+  // loading spinner gösterir), SSR hydration çakışması olmadan URL'den adımı okuyabiliriz.
+  const [step, setStep] = useState(() => {
+    if (typeof window !== "undefined" && wizard) {
+      const adim = parseInt(
+        new URLSearchParams(window.location.search).get("adim") || "0",
+        10
+      );
+      if (!isNaN(adim) && adim >= 0 && adim <= 15) return adim;
+    }
+    return 0;
+  });
   const [stepError, setStepError] = useState("");
+
+  // stepError 6 saniye sonra otomatik kapansın
+  useEffect(() => {
+    if (!stepError) return;
+    const t = setTimeout(() => setStepError(""), 6000);
+    return () => clearTimeout(t);
+  }, [stepError]);
+
+  // Adım değişince URL'yi güncelle (history.replaceState — sayfayı yeniden yüklemez)
+  useEffect(() => {
+    if (!wizard) return;
+    const url = new URL(window.location.href);
+    if (step === 0 || step === 15) {
+      url.searchParams.delete("adim");
+    } else {
+      url.searchParams.set("adim", String(step));
+    }
+    history.replaceState(null, "", url.toString());
+  }, [step, wizard]);
 
   // Form state
   const [form, setForm] = useState({
@@ -200,7 +251,12 @@ export default function InstallationForm({
     privacy_required: initialData?.privacy_required || false,
     authorized_person_phone: initialData?.authorized_person_phone || "",
     color_palette: initialData?.color_palette || null,
-    working_hours: initialData?.working_hours || null,
+    working_hours: (() => {
+      const wh = initialData?.working_hours;
+      if (!wh) return null;
+      if (typeof wh === "string") { try { return JSON.parse(wh); } catch { return null; } }
+      return wh;
+    })(),
     pages: Array.isArray(initialData?.pages) ? initialData.pages : [],
     social_links: initialData?.social_links || {},
     gallery_images: initialData?.gallery_images || [],
@@ -235,6 +291,25 @@ export default function InstallationForm({
       : {}
   );
 
+  // Form tamamlandıysa salt okunur modda aç (admin her zaman düzenleyebilir)
+  const isCompleted = !isAdmin && (form.is_completed === true);
+
+  // AI Soru-Cevap state'i
+  // Her eleman: { question: string, answer: string }
+  const [aiQuestions, setAiQuestions] = useState(() => {
+    const raw = initialData?.ai_questions;
+    if (Array.isArray(raw) && raw.length > 0) return raw;
+    if (typeof raw === "string") {
+      try { const p = JSON.parse(raw); if (Array.isArray(p)) return p; } catch { /* */ }
+    }
+    return [];
+  });
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [questionsError, setQuestionsError] = useState("");
+
+  // status: wizard karşılama ekranında gösterilir, admin güncelleyebilir
+  const [formStatus, setFormStatus] = useState(initialData?.status || "pending");
+
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [aiLoading, setAiLoading] = useState({});
@@ -243,7 +318,7 @@ export default function InstallationForm({
   const [promptText, setPromptText] = useState("");
   const galleryInputRef = useRef(null);
 
-  const set = (key, val) => setForm((p) => ({ ...p, [key]: val }));
+  const set = (key, val) => { if (isCompleted) return; setForm((p) => ({ ...p, [key]: val })); };
   const setSocial = (key, val) =>
     setForm((p) => ({ ...p, social_links: { ...p.social_links, [key]: val } }));
 
@@ -302,7 +377,9 @@ export default function InstallationForm({
       menu_items: menuItems,
       requested_domains: requestedDomains,
       domain_availability: domainAvailabilityForDb,
+      ai_questions: aiQuestions,
       is_completed: markCompleted ? true : form.is_completed,
+      status: markCompleted ? "in_review" : formStatus,
     };
     let res, data;
     try {
@@ -441,6 +518,11 @@ export default function InstallationForm({
         return null;
       case 13:
         return null;
+      case 14:
+        if (aiQuestions.length === 0) return "Lütfen önce 'Sorularımı Göster' butonuna tıklayın.";
+        if (!aiQuestions.some((item) => item.answer.trim()))
+          return "En az bir soruyu yanıtlamanız gerekmektedir.";
+        return null;
       default:
         return null;
     }
@@ -449,6 +531,11 @@ export default function InstallationForm({
   // ─── Wizard Navigasyon ───────────────────────────────────────────────────────
 
   async function handleNext() {
+    // Salt okunur modda doğrulama ve kaydetme yapma, sadece ileri git
+    if (isCompleted) {
+      setStep((s) => s + 1);
+      return;
+    }
     const err = validateStep(step);
     if (err) {
       setStepError(err);
@@ -475,7 +562,7 @@ export default function InstallationForm({
       setStepError("Gönderme hatası: " + result.error);
       return;
     }
-    setStep(15);
+    setStep(16);
   }
 
   // ─── CSS Yardımcıları ────────────────────────────────────────────────────────
@@ -485,6 +572,46 @@ export default function InstallationForm({
   const labelCls = "block text-sm font-medium text-zinc-700 dark:text-zinc-300";
   const sectionCls =
     "space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900";
+
+  // ─── AI Soru Üretme ─────────────────────────────────────────────────────────
+
+  async function generateAIQuestions() {
+    setQuestionsLoading(true);
+    setQuestionsError("");
+    try {
+      const res = await fetch("/api/ai/questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_name: form.business_name,
+          sector: form.sector,
+          services,
+          about_text: form.about_text,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sorular üretilemedi.");
+      if (!Array.isArray(data.questions)) throw new Error("Geçersiz API yanıtı.");
+      const generated = data.questions.map((q) => ({ question: q, answer: "" }));
+      setAiQuestions(generated);
+      // Hemen DB'ye kaydet — sayfa yenilemede de sorular kalsın
+      await fetch(apiUrl, {
+        method: isPublic ? "PUT" : method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ai_questions: generated }),
+      });
+    } catch (err) {
+      setQuestionsError(err.message);
+    } finally {
+      setQuestionsLoading(false);
+    }
+  }
+
+  function updateAnswer(idx, val) {
+    setAiQuestions((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, answer: val } : item))
+    );
+  }
 
   // ─── Domain ekleme ──────────────────────────────────────────────────────────
 
@@ -651,10 +778,28 @@ export default function InstallationForm({
       case 3:
         return (
           <div className="space-y-4">
-            <p className="text-sm text-zinc-500">
-              En az <strong>1 hizmet</strong> eklenmelidir.
-            </p>
-            <div className="flex gap-2">
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Web sitenizde yer almasını istediğiniz tüm hizmetleri ekleyin.
+              </p>
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {[
+                  "Kombi Bakımı", "Su Tesisatı", "Elektrik Tamiratı",
+                  "Diş Temizliği", "İmplant", "Kanal Tedavisi",
+                ].map((ex) => (
+                  <span
+                    key={ex}
+                    className="rounded-full border border-zinc-200 bg-white px-2.5 py-0.5 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+                  >
+                    {ex}
+                  </span>
+                ))}
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Bu örnekler gibi...
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
                 value={serviceInput.name}
@@ -667,7 +812,7 @@ export default function InstallationForm({
                     setServiceInput({ name: "", description: "" });
                   }
                 }}
-                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-1"
                 placeholder="Hizmet adı"
               />
               <input
@@ -676,7 +821,7 @@ export default function InstallationForm({
                 onChange={(e) =>
                   setServiceInput((p) => ({ ...p, description: e.target.value }))
                 }
-                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-1"
                 placeholder="Kısa açıklama (opsiyonel)"
               />
               <button
@@ -685,7 +830,7 @@ export default function InstallationForm({
                   setServices((p) => [...p, { ...serviceInput }]);
                   setServiceInput({ name: "", description: "" });
                 }}
-                className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+                className="w-full rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900 sm:w-auto sm:shrink-0"
               >
                 + Ekle
               </button>
@@ -843,8 +988,8 @@ export default function InstallationForm({
                   <label
                     key={t.value}
                     className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.brand_tone === t.value
-                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                        : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
                       }`}
                   >
                     <input
@@ -867,8 +1012,8 @@ export default function InstallationForm({
                   <label
                     key={g.value}
                     className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.main_goal === g.value
-                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                        : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
                       }`}
                   >
                     <input
@@ -902,8 +1047,8 @@ export default function InstallationForm({
                     <label
                       key={s.value}
                       className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.similarity_level === s.value
-                          ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                          : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                        : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
                         }`}
                     >
                       <input
@@ -985,10 +1130,37 @@ export default function InstallationForm({
       case 10:
         return (
           <div className="space-y-4">
-            <p className="text-sm text-zinc-500">
-              İşletme, dükkan veya çalışma görselleri yükleyin.{" "}
-              <span className="text-zinc-400">(Opsiyonel — max 20 görsel, 3 MB)</span>
-            </p>
+            {/* Açıklama kartı */}
+            <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                Sitenizde yer almasını istediğiniz görselleri yükleyin.
+              </p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                Dükkanınızın veya ofisinizin fotoğrafları, daha önce yaptığınız örnek işler,
+                ürün görselleri ya da ekibinizle ilgili kareler olabilir. Bu görseller sitenizin
+                görsel kalitesini doğrudan etkiler.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[
+                  { emoji: "🏪", label: "Dükkan / Ofis" },
+                  { emoji: "🔧", label: "Örnek İşler" },
+                  { emoji: "📦", label: "Ürünler" },
+                  { emoji: "👥", label: "Ekip Fotoğrafları" },
+                  { emoji: "🖼️", label: "Vitrin / Sergi" },
+                ].map(({ emoji, label }) => (
+                  <span
+                    key={label}
+                    className="flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+                  >
+                    <span>{emoji}</span>
+                    {label}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2.5 text-xs text-zinc-400 dark:text-zinc-500">
+                Bu adım opsiyoneldir — isterseniz boş bırakabilirsiniz. (Maks. 20 görsel, her biri 3 MB)
+              </p>
+            </div>
             <div
               className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 p-6 text-center hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
               onClick={() => galleryInputRef.current?.click()}
@@ -1054,19 +1226,19 @@ export default function InstallationForm({
               Ürün veya menü kalemleri ekleyin.{" "}
               <span className="text-zinc-400">(Opsiyonel)</span>
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 type="text"
                 value={menuInput.title}
                 onChange={(e) => setMenuInput((p) => ({ ...p, title: e.target.value }))}
-                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-1"
                 placeholder="Başlık"
               />
               <input
                 type="text"
                 value={menuInput.description}
                 onChange={(e) => setMenuInput((p) => ({ ...p, description: e.target.value }))}
-                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-1"
                 placeholder="Açıklama"
               />
               <button
@@ -1075,7 +1247,7 @@ export default function InstallationForm({
                   setMenuItems((p) => [...p, { ...menuInput }]);
                   setMenuInput({ title: "", description: "" });
                 }}
-                className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+                className="w-full rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900 sm:w-auto sm:shrink-0"
               >
                 + Ekle
               </button>
@@ -1136,8 +1308,71 @@ export default function InstallationForm({
           </div>
         );
 
-      // ADIM 14: Özet / Gönder
+      // ADIM 14: Sizi Tanıyalım (AI Soru-Cevap)
       case 14:
+        return (
+          <div className="space-y-5">
+            {/* Açıklama */}
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/40">
+              <p className="text-sm font-medium text-indigo-800 dark:text-indigo-300">
+                Sizi daha iyi tanıyalım
+              </p>
+              <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-400">
+                Sitenizi daha etkili hazırlayabilmemiz için işletmenize özel 3 soru hazırladık.
+                Cevaplarınız sitenizin içeriğini ve mesajını şekillendirecek.
+              </p>
+            </div>
+
+            {/* Soru üretme butonu */}
+            {aiQuestions.length === 0 && (
+              <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-zinc-200 p-8 text-center dark:border-zinc-700">
+                <div className="text-3xl">🤖</div>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  Sektörünüze özel sorular yapay zeka tarafından oluşturulacak.
+                </p>
+                {questionsError && (
+                  <p className="text-xs text-red-500">{questionsError}</p>
+                )}
+                <button
+                  type="button"
+                  disabled={questionsLoading || isCompleted}
+                  onClick={generateAIQuestions}
+                  className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {questionsLoading ? "Sorular hazırlanıyor…" : "Sorularımı Göster"}
+                </button>
+              </div>
+            )}
+
+            {/* Sorular ve cevap alanları */}
+            {aiQuestions.length > 0 && (
+              <div className="space-y-4">
+                {aiQuestions.map((item, idx) => (
+                  <div key={idx} className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                    <p className="mb-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                      <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                        {idx + 1}
+                      </span>
+                      {item.question}
+                    </p>
+                    <textarea
+                      rows={3}
+                      value={item.answer}
+                      onChange={(e) => updateAnswer(idx, e.target.value)}
+                      disabled={isCompleted}
+                      className="mt-1 w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none disabled:bg-zinc-50 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:disabled:bg-zinc-800/50"
+                      placeholder="Cevabınızı buraya yazın…"
+                    />
+                  </div>
+                ))}
+
+              </div>
+            )}
+          </div>
+        );
+
+      // ADIM 15: Özet / Gönder
+      case 15:
         return (
           <div className="space-y-4">
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-800 dark:bg-emerald-950/40">
@@ -1232,8 +1467,8 @@ export default function InstallationForm({
   // ─── WIZARD RENDER ─────────────────────────────────────────────────────────
 
   if (wizard) {
-    // Tebrik sayfası
-    if (step === 15) {
+    // Tebrik sayfası (adım 16)
+    if (step === 16) {
       return (
         <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-16 text-center">
           <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-4xl dark:bg-emerald-900">
@@ -1255,6 +1490,14 @@ export default function InstallationForm({
 
     // Karşılama ekranı
     if (step === 0) {
+      const STATUS_MAP = {
+        pending:     { label: "Doldurulmadı",     bg: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400" },
+        in_review:   { label: "İnceleniyor",      bg: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400" },
+        in_progress: { label: "Yapım Aşamasında", bg: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" },
+        completed:   { label: "Tamamlandı",       bg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" },
+      };
+      const statusInfo = STATUS_MAP[formStatus] || STATUS_MAP.pending;
+
       return (
         <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-16 text-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 text-2xl text-white dark:bg-zinc-100 dark:text-zinc-900">
@@ -1266,22 +1509,47 @@ export default function InstallationForm({
               {form.business_name}
             </p>
           )}
-          <p className="mt-3 max-w-sm text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-            Bu formu doldurarak sitenizin yapımı için gerekli bilgileri ekibimizle paylaşacaksınız.
-            Form <strong>{TOTAL_STEPS} adımdan</strong> oluşmaktadır, her adımda bilgileriniz otomatik kaydedilir.
-          </p>
-          <button
-            onClick={() => setStep(1)}
-            className="mt-8 rounded-xl bg-zinc-900 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            Kuruluma Başla →
-          </button>
+
+          {/* Durum rozeti */}
+          <div className="mt-4">
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${statusInfo.bg}`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+              {statusInfo.label}
+            </span>
+          </div>
+
+          {isCompleted ? (
+            <>
+              <p className="mt-4 max-w-sm text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                Kurulum formunu doldurdunuz. Aşağıdan girdiğiniz bilgileri inceleyebilirsiniz.
+              </p>
+              <button
+                onClick={() => setStep(1)}
+                className="mt-6 rounded-xl border border-zinc-300 bg-white px-8 py-3 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+              >
+                Formu Görüntüle →
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="mt-4 max-w-sm text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                Bu formu doldurarak sitenizin yapımı için gerekli bilgileri ekibimizle paylaşacaksınız.
+                Form <strong>{TOTAL_STEPS} adımdan</strong> oluşmaktadır, her adımda bilgileriniz otomatik kaydedilir.
+              </p>
+              <button
+                onClick={() => setStep(1)}
+                className="mt-8 rounded-xl bg-zinc-900 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                Kuruluma Başla →
+              </button>
+            </>
+          )}
         </div>
       );
     }
 
     // Wizard adımları (1–14)
-    const progress = step === 14 ? 100 : ((step - 1) / TOTAL_STEPS) * 100;
+    const progress = step >= TOTAL_STEPS ? 100 : ((step - 1) / TOTAL_STEPS) * 100;
     const currentStepTitle =
       step <= TOTAL_STEPS ? WIZARD_STEPS[step - 1]?.title : "Özet";
 
@@ -1339,7 +1607,7 @@ export default function InstallationForm({
         <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
           <div className="mx-auto max-w-2xl px-4 py-3">
             {stepError && (
-              <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400">
+              <p className="mb-2 rounded-lg bg-orange-50 px-3 py-2 text-sm font-medium text-orange-600 dark:bg-orange-950/40 dark:text-orange-400">
                 ⚠ {stepError}
               </p>
             )}
@@ -1356,26 +1624,38 @@ export default function InstallationForm({
                   disabled={saving}
                   className="rounded-lg bg-zinc-900 px-8 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
                 >
-                  {saving ? "Kaydediliyor…" : "İlerle →"}
+                  {isCompleted ? "İleri →" : saving ? "Kaydediliyor…" : "İlerle →"}
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-2">
-                {saveMsg && (
-                  <span
-                    className={`text-sm font-medium ${saveMsg.startsWith("Hata") ? "text-red-600" : "text-emerald-600"}`}
+              /* Son adım: isCompleted ise sadece geri butonu, gönder butonu gizle */
+              isCompleted ? (
+                <div className="flex justify-start">
+                  <button
+                    onClick={handleBack}
+                    className="rounded-lg border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
                   >
-                    {saveMsg}
-                  </span>
-                )}
-                <button
-                  onClick={handleSubmit}
-                  disabled={saving}
-                  className="w-full rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                >
-                  {saving ? "Gönderiliyor…" : "Kaydet ve Gönder ✓"}
-                </button>
-              </div>
+                    ← Geri
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  {saveMsg && (
+                    <span
+                      className={`text-sm font-medium ${saveMsg.startsWith("Hata") ? "text-red-600" : "text-emerald-600"}`}
+                    >
+                      {saveMsg}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleSubmit}
+                    disabled={saving}
+                    className="w-full rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  >
+                    {saving ? "Gönderiliyor…" : "Kaydet ve Gönder ✓"}
+                  </button>
+                </div>
+              )
             )}
           </div>
         </div>
@@ -1508,19 +1788,19 @@ export default function InstallationForm({
       {/* HİZMETLER */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Hizmetler</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <input
             type="text"
             value={serviceInput.name}
             onChange={(e) => setServiceInput((p) => ({ ...p, name: e.target.value }))}
-            className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-1"
             placeholder="Hizmet adı"
           />
           <input
             type="text"
             value={serviceInput.description}
             onChange={(e) => setServiceInput((p) => ({ ...p, description: e.target.value }))}
-            className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-1"
             placeholder="Kısa açıklama (opsiyonel)"
           />
           <button
@@ -1529,7 +1809,7 @@ export default function InstallationForm({
               setServices((p) => [...p, { ...serviceInput }]);
               setServiceInput({ name: "", description: "" });
             }}
-            className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+            className="w-full rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900 sm:w-auto sm:shrink-0"
           >
             + Ekle
           </button>
@@ -1610,19 +1890,19 @@ export default function InstallationForm({
       {/* MENÜ / ÜRÜNLER */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Menü ve Ürünler</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <input
             type="text"
             value={menuInput.title}
             onChange={(e) => setMenuInput((p) => ({ ...p, title: e.target.value }))}
-            className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-1"
             placeholder="Başlık"
           />
           <input
             type="text"
             value={menuInput.description}
             onChange={(e) => setMenuInput((p) => ({ ...p, description: e.target.value }))}
-            className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-1"
             placeholder="Açıklama"
           />
           <button
@@ -1631,7 +1911,7 @@ export default function InstallationForm({
               setMenuItems((p) => [...p, { ...menuInput }]);
               setMenuInput({ title: "", description: "" });
             }}
-            className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+            className="w-full rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900 sm:w-auto sm:shrink-0"
           >
             + Ekle
           </button>
@@ -1726,8 +2006,8 @@ export default function InstallationForm({
               <label
                 key={t.value}
                 className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.brand_tone === t.value
-                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                  : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
                   }`}
               >
                 <input
@@ -1750,8 +2030,8 @@ export default function InstallationForm({
               <label
                 key={g.value}
                 className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.main_goal === g.value
-                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+                  ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                  : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
                   }`}
               >
                 <input
@@ -1785,8 +2065,8 @@ export default function InstallationForm({
                 <label
                   key={s.value}
                   className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.similarity_level === s.value
-                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                      : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                    : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
                     }`}
                 >
                   <input
@@ -1868,10 +2148,37 @@ export default function InstallationForm({
 
       {/* GALERİ */}
       <section className={sectionCls}>
-        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-          Site Görselleri
-          <span className="ml-1 text-xs font-normal text-zinc-400">(max 20 görsel, 3 MB)</span>
-        </h3>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Site Görselleri</h3>
+        {/* Açıklama kartı */}
+        <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/50">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Sitenizde yer almasını istediğiniz görselleri yükleyin.
+          </p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Dükkanınızın veya ofisinizin fotoğrafları, daha önce yaptığınız örnek işler,
+            ürün görselleri ya da ekibinizle ilgili kareler olabilir.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {[
+              { emoji: "🏪", label: "Dükkan / Ofis" },
+              { emoji: "🔧", label: "Örnek İşler" },
+              { emoji: "📦", label: "Ürünler" },
+              { emoji: "👥", label: "Ekip Fotoğrafları" },
+              { emoji: "🖼️", label: "Vitrin / Sergi" },
+            ].map(({ emoji, label }) => (
+              <span
+                key={label}
+                className="flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+              >
+                <span>{emoji}</span>
+                {label}
+              </span>
+            ))}
+          </div>
+          <p className="mt-2.5 text-xs text-zinc-400 dark:text-zinc-500">
+            Opsiyonel — maks. 20 görsel, her biri 3 MB
+          </p>
+        </div>
         <div
           className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 p-6 text-center hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
           onClick={() => galleryInputRef.current?.click()}
