@@ -44,16 +44,16 @@ export async function POST(request) {
 
   const socialLinks = form.social_links
     ? Object.entries(form.social_links)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(", ")
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ")
     : "";
 
   const colors = form.color_palette
     ? Object.entries(form.color_palette)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(", ")
+      .filter(([, v]) => v)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(", ")
     : "";
 
   const prompt = `# Web Sitesi Geliştirme Prompt'u
@@ -70,7 +70,6 @@ Bu prompt, bir AI kod editörüne (Cursor vb.) verilecek ve otomatik olarak tam 
 ${form.landline_phone ? `- **Sabit Hat:** ${form.landline_phone}` : ""}
 - **E-posta:** ${form.email || "—"}
 - **Google Maps:** ${form.google_maps_link || "—"}
-- **Google İşletme:** ${form.social_links?.google_business || "—"}
 
 ## Çalışma Saatleri
 ${form.working_hours ? JSON.stringify(form.working_hours, null, 2) : "—"}
@@ -98,8 +97,6 @@ ${socialLinks || "—"}
 
 ## Sayfa Yapısı
 Sitede şu sayfalar olacak: ${pagesList || "—"}
-${form.kvkk_required ? "- KVKK sayfası dahil" : ""}
-${form.privacy_required ? "- Gizlilik Sözleşmesi sayfası dahil" : ""}
 
 ## Rakip / Referans
 - **Referans Site:** ${form.competitor_website || "—"}

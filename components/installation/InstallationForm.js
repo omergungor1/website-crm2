@@ -8,6 +8,8 @@ import PageSelector from "./PageSelector";
 import PromptModal from "./PromptModal";
 import { createClient } from "@/lib/supabase/client";
 
+// ─── Sabitler ────────────────────────────────────────────────────────────────
+
 const BRAND_TONES = [
   { value: "formal", label: "Resmi" },
   { value: "friendly", label: "Samimi" },
@@ -26,41 +28,137 @@ const MAIN_GOALS = [
   { value: "order", label: "Sipariş" },
 ];
 
+const WIZARD_STEPS = [
+  { id: 1, title: "Temel Bilgiler" },
+  { id: 2, title: "Çalışma Saatleri" },
+  { id: 3, title: "Hizmetler" },
+  { id: 4, title: "Hizmet Bölgeleri" },
+  { id: 5, title: "İçerik" },
+  { id: 6, title: "Domain Adayları" },
+  { id: 7, title: "Marka Kimliği" },
+  { id: 8, title: "Renk Paleti" },
+  { id: 9, title: "Logo" },
+  { id: 10, title: "Site Görselleri" },
+  { id: 11, title: "Sayfalar" },
+  { id: 12, title: "Menü ve Ürünler" },
+  { id: 13, title: "Sosyal Medya" },
+];
+const TOTAL_STEPS = WIZARD_STEPS.length;
+
+// ─── Yardımcı Fonksiyonlar ───────────────────────────────────────────────────
+
 function formatPhone(raw, type) {
   const digits = raw.replace(/\D/g, "");
   if (type === "mobile") {
     if (digits.length === 0) return "";
     const d = digits.startsWith("0") ? digits : "0" + digits;
     const t = d.slice(0, 11);
-    let result = "";
-    if (t.length <= 4) result = t;
-    else if (t.length <= 7) result = `${t.slice(0, 4)} ${t.slice(4)}`;
-    else if (t.length <= 9) result = `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7)}`;
-    else result = `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7, 9)} ${t.slice(9)}`;
-    return result;
+    if (t.length <= 4) return t;
+    if (t.length <= 7) return `${t.slice(0, 4)} ${t.slice(4)}`;
+    if (t.length <= 9) return `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7)}`;
+    return `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7, 9)} ${t.slice(9)}`;
   } else {
     const d = digits.startsWith("0") ? digits : "0" + digits;
     const t = d.slice(0, 11);
-    let result = "";
-    if (t.length <= 4) result = t;
-    else if (t.length <= 7) result = `${t.slice(0, 4)} ${t.slice(4)}`;
-    else if (t.length <= 10) result = `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7)}`;
-    else result = `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7, 10)} ${t.slice(10)}`;
-    return result;
+    if (t.length <= 4) return t;
+    if (t.length <= 7) return `${t.slice(0, 4)} ${t.slice(4)}`;
+    if (t.length <= 10) return `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7)}`;
+    return `${t.slice(0, 4)} ${t.slice(4, 7)} ${t.slice(7, 10)} ${t.slice(10)}`;
   }
 }
 
-function useFieldList(initial = []) {
-  const [items, setItems] = useState(initial);
-  const [input, setInput] = useState("");
-  const add = () => {
-    if (!input.trim()) return;
-    setItems((p) => [...p, input.trim()]);
-    setInput("");
-  };
-  const remove = (i) => setItems((p) => p.filter((_, idx) => idx !== i));
-  return { items, setItems, input, setInput, add, remove };
+function normalizeDomain(input) {
+  return input
+    .replace(/Ç/g, "C").replace(/ç/g, "c")
+    .replace(/Ğ/g, "G").replace(/ğ/g, "g")
+    .replace(/İ/g, "I").replace(/ı/g, "i")
+    .replace(/Ö/g, "O").replace(/ö/g, "o")
+    .replace(/Ş/g, "S").replace(/ş/g, "s")
+    .replace(/Ü/g, "U").replace(/ü/g, "u")
+    .toLowerCase()
+    .trim();
 }
+
+// ─── Domain Yardımcı Bileşenleri (bileşen dışında — focus kaybı olmaz) ────────
+
+function AvailabilityBadge({ info }) {
+  if (!info) return null;
+  if (info.loading) {
+    return (
+      <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
+        <span className="h-2.5 w-2.5 animate-spin rounded-full border border-zinc-400 border-t-transparent" />
+        Kontrol ediliyor…
+      </span>
+    );
+  }
+  if (info.available === null) return null;
+  if (info.available) {
+    return (
+      <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
+        ✓ Uygun
+      </span>
+    );
+  }
+  return (
+    <span
+      className="ml-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/50 dark:text-red-400"
+      title={info.registrar ? `Kayıtlı: ${info.registrar}` : undefined}
+    >
+      ✗ Uygun Değil
+    </span>
+  );
+}
+
+function DomainInputRow({ domainInput, setDomainInput, onAdd }) {
+  return (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        value={domainInput}
+        onChange={(e) => setDomainInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onAdd(domainInput);
+          }
+        }}
+        className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+        placeholder="örnek.com veya example.com"
+      />
+      <button
+        onClick={() => onAdd(domainInput)}
+        className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+      >
+        + Ekle
+      </button>
+    </div>
+  );
+}
+
+function DomainList({ domains, availability, onRemove }) {
+  if (domains.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {domains.map((d, i) => (
+        <span
+          key={i}
+          className="flex items-center gap-1 rounded-full border border-zinc-200 px-3 py-1 font-mono text-xs dark:border-zinc-700"
+        >
+          {d}
+          <AvailabilityBadge info={availability[d]} />
+          <button
+            onClick={() => onRemove(i)}
+            className="ml-1 text-red-500 hover:text-red-700"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+// ─── Ana Bileşen ─────────────────────────────────────────────────────────────
 
 export default function InstallationForm({
   initialData,
@@ -70,8 +168,15 @@ export default function InstallationForm({
   apiUrl,
   method = "PUT",
   isPublic = false,
+  wizard = false,
 }) {
   const supabase = createClient();
+
+  // Wizard navigasyon
+  const [step, setStep] = useState(0);
+  const [stepError, setStepError] = useState("");
+
+  // Form state
   const [form, setForm] = useState({
     business_name: initialData?.business_name || "",
     contact_phone: initialData?.contact_phone || "",
@@ -82,6 +187,8 @@ export default function InstallationForm({
     google_maps_link: initialData?.google_maps_link || "",
     sector: initialData?.sector || "",
     logo_url: initialData?.logo_url || "",
+    logo_generate: initialData?.logo_generate !== false,
+    logo_ai_urls: Array.isArray(initialData?.logo_ai_urls) ? initialData.logo_ai_urls : [],
     about_text: initialData?.about_text || "",
     about_generate: initialData?.about_generate || false,
     slogan: initialData?.slogan || "",
@@ -104,21 +211,29 @@ export default function InstallationForm({
     Array.isArray(initialData?.services) ? initialData.services : []
   );
   const [serviceInput, setServiceInput] = useState({ name: "", description: "" });
-
   const [regions, setRegions] = useState(
     Array.isArray(initialData?.service_regions) ? initialData.service_regions : []
   );
   const [regionInput, setRegionInput] = useState("");
-
   const [menuItems, setMenuItems] = useState(
     Array.isArray(initialData?.menu_items) ? initialData.menu_items : []
   );
   const [menuInput, setMenuInput] = useState({ title: "", description: "" });
-
   const [requestedDomains, setRequestedDomains] = useState(
     Array.isArray(initialData?.requested_domains) ? initialData.requested_domains : []
   );
   const [domainInput, setDomainInput] = useState("");
+  // domain → {available: bool|null, loading: bool, registrar: string|null}
+  const [domainAvailability, setDomainAvailability] = useState(
+    typeof initialData?.domain_availability === "object" && initialData.domain_availability !== null
+      ? Object.fromEntries(
+        Object.entries(initialData.domain_availability).map(([d, v]) => [
+          d,
+          { available: v.available, loading: false, registrar: v.registrar || null },
+        ])
+      )
+      : {}
+  );
 
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -132,48 +247,91 @@ export default function InstallationForm({
   const setSocial = (key, val) =>
     setForm((p) => ({ ...p, social_links: { ...p.social_links, [key]: val } }));
 
-  // Telefon formatı
-  const isMobile = (phone) => {
-    const d = phone.replace(/\D/g, "");
-    return d.startsWith("05");
-  };
+  const isMobile = (phone) => phone.replace(/\D/g, "").startsWith("05");
+
+  // ─── Domain Uygunluk Kontrolü ────────────────────────────────────────────────
+
+  async function checkDomainAvailability(domain) {
+    // Daha önce kontrol edildiyse tekrar sorgu atma
+    if (domainAvailability[domain] && !domainAvailability[domain].loading) return;
+
+    setDomainAvailability((p) => ({ ...p, [domain]: { available: null, loading: true, registrar: null } }));
+    try {
+      const res = await fetch("/api/domains/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      });
+      const data = await res.json();
+      setDomainAvailability((p) => ({
+        ...p,
+        [domain]: {
+          available: res.ok ? data.available : null,
+          loading: false,
+          registrar: data.registrar || null,
+        },
+      }));
+    } catch {
+      setDomainAvailability((p) => ({ ...p, [domain]: { available: null, loading: false, registrar: null } }));
+    }
+  }
+
+  // ─── Kaydetme ───────────────────────────────────────────────────────────────
 
   async function handleSave(markCompleted = false) {
     setSaving(true);
     setSaveMsg("");
+    // CHECK kısıtlamalı enum alanlar boş string ise null gönder
+    const ENUM_FIELDS = ["brand_tone", "similarity_level", "main_goal"];
+    const sanitized = { ...form };
+    for (const field of ENUM_FIELDS) {
+      if (sanitized[field] === "") sanitized[field] = null;
+    }
+
+    // domain_availability'yi DB formatına çevir: {domain: {available, registrar}}
+    const domainAvailabilityForDb = Object.fromEntries(
+      Object.entries(domainAvailability)
+        .filter(([, v]) => !v.loading && v.available !== null)
+        .map(([d, v]) => [d, { available: v.available, registrar: v.registrar }])
+    );
+
     const payload = {
-      ...form,
+      ...sanitized,
       services,
       service_regions: regions,
       menu_items: menuItems,
       requested_domains: requestedDomains,
+      domain_availability: domainAvailabilityForDb,
       is_completed: markCompleted ? true : form.is_completed,
     };
-
-    const headers = { "Content-Type": "application/json" };
-    let url = apiUrl;
-    let fetchMethod = method;
-
-    if (isPublic) {
-      url = apiUrl;
-      fetchMethod = "PUT";
+    let res, data;
+    try {
+      res = await fetch(apiUrl, {
+        method: isPublic ? "PUT" : method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+    } catch (err) {
+      console.error("[InstallationForm] Ağ hatası:", err);
+      setSaving(false);
+      setSaveMsg("Ağ hatası: " + err.message);
+      return { ok: false, error: "Ağ hatası: " + err.message };
     }
-
-    const res = await fetch(url, {
-      method: fetchMethod,
-      headers,
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
     setSaving(false);
     if (!res.ok) {
-      setSaveMsg("Hata: " + (data.error || "Bilinmeyen hata"));
-      return;
+      const errMsg = data?.error || `HTTP ${res.status}`;
+      console.error("[InstallationForm] Kaydetme hatası:", errMsg, "| payload keys:", Object.keys(payload));
+      setSaveMsg("Hata: " + errMsg);
+      return { ok: false, error: errMsg };
     }
     setSaveMsg(markCompleted ? "Gönderildi!" : "Kaydedildi!");
     setTimeout(() => setSaveMsg(""), 3000);
     onSave?.(data);
+    return { ok: true };
   }
+
+  // ─── AI Fonksiyonları ────────────────────────────────────────────────────────
 
   async function handleAI(type) {
     setAiLoading((p) => ({ ...p, [type]: true }));
@@ -194,7 +352,6 @@ export default function InstallationForm({
       const data = await res.json();
       if (type === "about") set("about_text", data.text || "");
       if (type === "colors") set("color_palette", data.palettes?.[0]?.colors || null);
-      if (type === "logo") set("logo_url", data.url || "");
     } finally {
       setAiLoading((p) => ({ ...p, [type]: false }));
     }
@@ -222,14 +379,15 @@ export default function InstallationForm({
     }
   }
 
-  // Galeri yükleme
   async function handleGalleryUpload(e) {
     const files = Array.from(e.target.files || []).slice(0, 20 - form.gallery_images.length);
     const uploaded = [];
     for (const file of files) {
       if (file.size > 3 * 1024 * 1024) continue;
       const path = `${projectId || "public"}/gallery/${Date.now()}-${file.name}`;
-      const { data, error } = await supabase.storage.from("crm-uploads").upload(path, file, { upsert: true });
+      const { data, error } = await supabase.storage
+        .from("crm-uploads")
+        .upload(path, file, { upsert: true });
       if (!error && data) {
         const { data: urlData } = supabase.storage.from("crm-uploads").getPublicUrl(data.path);
         uploaded.push(urlData.publicUrl);
@@ -238,28 +396,1004 @@ export default function InstallationForm({
     set("gallery_images", [...form.gallery_images, ...uploaded]);
   }
 
-  async function handleLogoUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file || file.size > 3 * 1024 * 1024) return;
-    const path = `${projectId || "public"}/logo/${Date.now()}-${file.name}`;
-    const { data, error } = await supabase.storage.from("crm-uploads").upload(path, file, { upsert: true });
-    if (!error && data) {
-      const { data: urlData } = supabase.storage.from("crm-uploads").getPublicUrl(data.path);
-      set("logo_url", urlData.publicUrl);
+  // ─── Adım Doğrulaması ────────────────────────────────────────────────────────
+
+  function validateStep(s) {
+    switch (s) {
+      case 1:
+        if (!form.business_name.trim()) return "İşletme adı zorunludur.";
+        if (!form.sector.trim()) return "Sektör zorunludur.";
+        if (!form.contact_phone.trim()) return "Cep telefonu zorunludur.";
+        if (!form.email.trim()) return "E-posta zorunludur.";
+        if (!form.address.trim()) return "Adres zorunludur.";
+        return null;
+      case 2:
+        if (!form.working_hours) return "Çalışma saatleri doldurulmalıdır.";
+        if (!Object.values(form.working_hours).some((d) => !d.closed))
+          return "En az bir gün açık olarak işaretlenmelidir.";
+        return null;
+      case 3:
+        if (services.length === 0) return "En az bir hizmet eklenmelidir.";
+        return null;
+      case 4:
+        if (regions.length === 0) return "En az bir hizmet bölgesi eklenmelidir.";
+        return null;
+      case 5:
+        if (!form.about_text.trim()) return "Hakkımızda metni zorunludur.";
+        return null;
+      case 6:
+        if (requestedDomains.length === 0) return "En az bir domain adayı eklenmelidir.";
+        return null;
+      case 7:
+        return null;
+      case 8:
+        if (!form.color_palette) return "Renk paleti seçilmelidir.";
+        return null;
+      case 9:
+        if (!form.logo_url) return "Logo seçilmeli veya yüklenmelidir.";
+        return null;
+      case 10:
+        return null;
+      case 11:
+        if (!form.pages || form.pages.length < 3) return "En az 3 sayfa seçilmelidir.";
+        return null;
+      case 12:
+        return null;
+      case 13:
+        return null;
+      default:
+        return null;
     }
   }
+
+  // ─── Wizard Navigasyon ───────────────────────────────────────────────────────
+
+  async function handleNext() {
+    const err = validateStep(step);
+    if (err) {
+      setStepError(err);
+      return;
+    }
+    setStepError("");
+    const result = await handleSave(false);
+    if (!result.ok) {
+      setStepError("Kaydetme hatası: " + result.error);
+      return;
+    }
+    setStep((s) => s + 1);
+  }
+
+  function handleBack() {
+    setStepError("");
+    setStep((s) => Math.max(0, s - 1));
+  }
+
+  async function handleSubmit() {
+    setStepError("");
+    const result = await handleSave(true);
+    if (!result.ok) {
+      setStepError("Gönderme hatası: " + result.error);
+      return;
+    }
+    setStep(15);
+  }
+
+  // ─── CSS Yardımcıları ────────────────────────────────────────────────────────
 
   const inputCls =
     "mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100";
   const labelCls = "block text-sm font-medium text-zinc-700 dark:text-zinc-300";
-  const sectionCls = "space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900";
+  const sectionCls =
+    "space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900";
+
+  // ─── Domain ekleme ──────────────────────────────────────────────────────────
+
+  function addDomain(raw) {
+    const normalized = normalizeDomain(raw);
+    if (!normalized) return;
+    setRequestedDomains((p) => [...p, normalized]);
+    setDomainInput("");
+    if (!domainAvailability[normalized]) {
+      checkDomainAvailability(normalized);
+    }
+  }
+
+  function removeDomain(idx) {
+    setRequestedDomains((p) => p.filter((_, i) => i !== idx));
+  }
+
+  // ─── Wizard Adım İçerikleri ───────────────────────────────────────────────────
+
+  function renderStepContent() {
+    switch (step) {
+      // ADIM 1: Temel Bilgiler
+      case 1:
+        return (
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>
+                  İşletme Adı <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.business_name}
+                  onChange={(e) => set("business_name", e.target.value)}
+                  className={inputCls}
+                  placeholder="ABC Çilingir"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>
+                  Sektör <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.sector}
+                  onChange={(e) => set("sector", e.target.value)}
+                  className={inputCls}
+                  placeholder="Çilingir, Restoran, Hukuk…"
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>
+                  Cep Telefonu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="tel"
+                  value={form.contact_phone}
+                  onChange={(e) =>
+                    set("contact_phone", formatPhone(e.target.value, "mobile"))
+                  }
+                  className={inputCls}
+                  placeholder="05XX XXX XX XX"
+                  maxLength={14}
+                />
+                <label className="mt-1.5 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                  <input
+                    type="checkbox"
+                    checked={form.contact_phone_has_whatsapp}
+                    onChange={(e) => set("contact_phone_has_whatsapp", e.target.checked)}
+                    className="rounded"
+                  />
+                  WhatsApp butonu siteye eklensin
+                </label>
+              </div>
+              <div>
+                <label className={labelCls}>Sabit Hat (opsiyonel)</label>
+                <input
+                  type="tel"
+                  value={form.landline_phone}
+                  onChange={(e) =>
+                    set("landline_phone", formatPhone(e.target.value, "landline"))
+                  }
+                  className={inputCls}
+                  placeholder="0XXX XXX XX XX"
+                  maxLength={14}
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>
+                  E-posta <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => set("email", e.target.value)}
+                  className={inputCls}
+                  placeholder="info@example.com"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Yetkili Telefonu (iç iletişim)</label>
+                <input
+                  type="tel"
+                  value={form.authorized_person_phone}
+                  onChange={(e) =>
+                    set(
+                      "authorized_person_phone",
+                      formatPhone(
+                        e.target.value,
+                        isMobile(e.target.value) ? "mobile" : "landline"
+                      )
+                    )
+                  }
+                  className={inputCls}
+                  placeholder="05XX XXX XX XX"
+                  maxLength={14}
+                />
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>
+                Adres <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                rows={2}
+                value={form.address}
+                onChange={(e) => set("address", e.target.value)}
+                className={`${inputCls} resize-none`}
+                placeholder="Mahalle, Sokak, No, İlçe / İl"
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Google Maps Linki (opsiyonel)</label>
+              <input
+                type="url"
+                value={form.google_maps_link}
+                onChange={(e) => set("google_maps_link", e.target.value)}
+                className={inputCls}
+                placeholder="https://maps.google.com/…"
+              />
+            </div>
+          </div>
+        );
+
+      // ADIM 2: Çalışma Saatleri
+      case 2:
+        return (
+          <div className="space-y-3">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Her gün için çalışma saatlerinizi ayarlayın. Kapalı olan günleri işaretleyin.
+            </p>
+            <WorkingHours
+              value={form.working_hours}
+              onChange={(v) => set("working_hours", v)}
+            />
+          </div>
+        );
+
+      // ADIM 3: Hizmetler
+      case 3:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              En az <strong>1 hizmet</strong> eklenmelidir.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={serviceInput.name}
+                onChange={(e) => setServiceInput((p) => ({ ...p, name: e.target.value }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (!serviceInput.name.trim()) return;
+                    setServices((p) => [...p, { ...serviceInput }]);
+                    setServiceInput({ name: "", description: "" });
+                  }
+                }}
+                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                placeholder="Hizmet adı"
+              />
+              <input
+                type="text"
+                value={serviceInput.description}
+                onChange={(e) =>
+                  setServiceInput((p) => ({ ...p, description: e.target.value }))
+                }
+                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                placeholder="Kısa açıklama (opsiyonel)"
+              />
+              <button
+                onClick={() => {
+                  if (!serviceInput.name.trim()) return;
+                  setServices((p) => [...p, { ...serviceInput }]);
+                  setServiceInput({ name: "", description: "" });
+                }}
+                className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                + Ekle
+              </button>
+            </div>
+            {services.length > 0 && (
+              <ul className="space-y-1.5">
+                {services.map((s, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+                  >
+                    <span className="text-sm text-zinc-800 dark:text-zinc-200">
+                      <strong>{s.name}</strong>
+                      {s.description ? ` — ${s.description}` : ""}
+                    </span>
+                    <button
+                      onClick={() => setServices((p) => p.filter((_, idx) => idx !== i))}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+
+      // ADIM 4: Hizmet Bölgeleri
+      case 4:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              En az <strong>1 hizmet bölgesi</strong> eklenmelidir.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={regionInput}
+                onChange={(e) => setRegionInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (!regionInput.trim()) return;
+                    setRegions((p) => [...p, regionInput.trim()]);
+                    setRegionInput("");
+                  }
+                }}
+                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                placeholder="İstanbul, Kadıköy…"
+              />
+              <button
+                onClick={() => {
+                  if (!regionInput.trim()) return;
+                  setRegions((p) => [...p, regionInput.trim()]);
+                  setRegionInput("");
+                }}
+                className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                + Ekle
+              </button>
+            </div>
+            {regions.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {regions.map((r, i) => (
+                  <span
+                    key={i}
+                    className="flex items-center gap-1 rounded-full border border-zinc-200 px-3 py-1 text-xs dark:border-zinc-700"
+                  >
+                    {r}
+                    <button
+                      onClick={() => setRegions((p) => p.filter((_, idx) => idx !== i))}
+                      className="text-red-500"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      // ADIM 5: İçerik
+      case 5:
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Slogan / Kısa Açıklama (opsiyonel)</label>
+              <input
+                type="text"
+                value={form.slogan}
+                onChange={(e) => set("slogan", e.target.value)}
+                className={inputCls}
+                placeholder="Güvenilir ve hızlı hizmet…"
+              />
+            </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className={labelCls}>
+                  Hakkımızda Metni <span className="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  disabled={aiLoading.about}
+                  onClick={() => handleAI("about")}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {aiLoading.about ? "Yazılıyor…" : "AI ile Yaz"}
+                </button>
+              </div>
+              <textarea
+                rows={6}
+                value={form.about_text}
+                onChange={(e) => set("about_text", e.target.value)}
+                className={`${inputCls} resize-y`}
+                placeholder="İşletmenizi kısaca anlatın…"
+              />
+            </div>
+          </div>
+        );
+
+      // ADIM 6: Domain Adayları
+      case 6:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              En az <strong>1 domain adayı</strong> girilmelidir. Türkçe karakterler otomatik
+              dönüştürülür. Eklendikten sonra uygunluğu otomatik kontrol edilir.
+            </p>
+            <DomainInputRow
+              domainInput={domainInput}
+              setDomainInput={setDomainInput}
+              onAdd={addDomain}
+            />
+            <DomainList
+              domains={requestedDomains}
+              availability={domainAvailability}
+              onRemove={removeDomain}
+            />
+          </div>
+        );
+
+      // ADIM 7: Marka Kimliği (tümü opsiyonel)
+      case 7:
+        return (
+          <div className="space-y-5">
+            <p className="rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-500 dark:bg-zinc-800">
+              Bu adımdaki tüm alanlar opsiyoneldir, atlayabilirsiniz.
+            </p>
+            <div>
+              <label className={labelCls}>Marka Dili</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {BRAND_TONES.map((t) => (
+                  <label
+                    key={t.value}
+                    className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.brand_tone === t.value
+                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                        : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="brand_tone"
+                      value={t.value}
+                      checked={form.brand_tone === t.value}
+                      onChange={() => set("brand_tone", t.value)}
+                      className="sr-only"
+                    />
+                    {t.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Ana Hedef</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {MAIN_GOALS.map((g) => (
+                  <label
+                    key={g.value}
+                    className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.main_goal === g.value
+                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                        : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="main_goal"
+                      value={g.value}
+                      checked={form.main_goal === g.value}
+                      onChange={() => set("main_goal", g.value)}
+                      className="sr-only"
+                    />
+                    {g.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelCls}>Rakip / Referans Site</label>
+                <input
+                  type="url"
+                  value={form.competitor_website}
+                  onChange={(e) => set("competitor_website", e.target.value)}
+                  className={inputCls}
+                  placeholder="https://rakip.com"
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Ne Kadar Benzesin?</label>
+                <div className="mt-2 flex gap-2">
+                  {SIMILARITY_LEVELS.map((s) => (
+                    <label
+                      key={s.value}
+                      className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.similarity_level === s.value
+                          ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                          : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="similarity_level"
+                        value={s.value}
+                        checked={form.similarity_level === s.value}
+                        onChange={() => set("similarity_level", s.value)}
+                        className="sr-only"
+                      />
+                      {s.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      // ADIM 8: Renk Paleti
+      case 8:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              Bir renk paleti <strong>seçmek zorunludur</strong>. Hazır paletlerden seçebilir, elle girebilir veya AI ile üretebilirsiniz.
+            </p>
+            {form.color_palette && (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-700 dark:bg-emerald-950/40">
+                <div className="flex gap-1.5">
+                  {["primary", "secondary", "accent", "background"].map((k) => (
+                    <div
+                      key={k}
+                      className="h-5 w-5 rounded-full border border-white/50 shadow-sm"
+                      style={{ background: form.color_palette[k] }}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                  ✓ Renk paleti seçildi
+                </span>
+              </div>
+            )}
+            <ColorPalette
+              value={form.color_palette}
+              onChange={(v) => set("color_palette", v)}
+              sector={form.sector}
+              brandTone={form.brand_tone}
+              mainGoal={form.main_goal}
+            />
+          </div>
+        );
+
+      // ADIM 9: Logo
+      case 9:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              Logo <strong>zorunludur</strong>. AI ile üretip birini seçebilir veya kendi logonuzu yükleyebilirsiniz.
+            </p>
+            <LogoSection
+              logoUrl={form.logo_url}
+              logoGenerate={form.logo_generate}
+              logoAiUrls={form.logo_ai_urls}
+              sector={form.sector}
+              businessName={form.business_name}
+              services={services}
+              colorPalette={form.color_palette}
+              projectId={projectId}
+              onLogoChange={(url) => set("logo_url", url)}
+              onAiGenerated={(urls) => {
+                set("logo_ai_urls", urls);
+                set("logo_generate", true);
+              }}
+            />
+          </div>
+        );
+
+      // ADIM 10: Site Görselleri
+      case 10:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              İşletme, dükkan veya çalışma görselleri yükleyin.{" "}
+              <span className="text-zinc-400">(Opsiyonel — max 20 görsel, 3 MB)</span>
+            </p>
+            <div
+              className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 p-6 text-center hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
+              onClick={() => galleryInputRef.current?.click()}
+            >
+              <p className="text-sm text-zinc-500">Görselleri buraya sürükleyin veya tıklayın</p>
+              <p className="mt-1 text-xs text-zinc-400">PNG, JPG, WEBP — maks. 3 MB her biri</p>
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={handleGalleryUpload}
+              />
+            </div>
+            {form.gallery_images.length > 0 && (
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                {form.gallery_images.map((url, i) => (
+                  <div
+                    key={i}
+                    className="group relative aspect-square overflow-hidden rounded-lg bg-zinc-100"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="h-full w-full object-cover" />
+                    <button
+                      onClick={() =>
+                        set(
+                          "gallery_images",
+                          form.gallery_images.filter((_, idx) => idx !== i)
+                        )
+                      }
+                      className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 group-hover:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      // ADIM 11: Sayfalar
+      case 11:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              Sitenizde olmasını istediğiniz sayfaları seçin.{" "}
+              <strong>En az 3 sayfa</strong> seçilmelidir.
+            </p>
+            <PageSelector
+              value={form.pages}
+              onChange={(v) => set("pages", v)}
+            />
+          </div>
+        );
+
+      // ADIM 12: Menü ve Ürünler
+      case 12:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              Ürün veya menü kalemleri ekleyin.{" "}
+              <span className="text-zinc-400">(Opsiyonel)</span>
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={menuInput.title}
+                onChange={(e) => setMenuInput((p) => ({ ...p, title: e.target.value }))}
+                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                placeholder="Başlık"
+              />
+              <input
+                type="text"
+                value={menuInput.description}
+                onChange={(e) => setMenuInput((p) => ({ ...p, description: e.target.value }))}
+                className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                placeholder="Açıklama"
+              />
+              <button
+                onClick={() => {
+                  if (!menuInput.title.trim()) return;
+                  setMenuItems((p) => [...p, { ...menuInput }]);
+                  setMenuInput({ title: "", description: "" });
+                }}
+                className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+              >
+                + Ekle
+              </button>
+            </div>
+            {menuItems.length > 0 && (
+              <ul className="space-y-1.5">
+                {menuItems.map((m, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+                  >
+                    <span className="text-sm">
+                      <strong className="text-zinc-800 dark:text-zinc-200">{m.title}</strong>
+                      {m.description && (
+                        <span className="text-zinc-500"> — {m.description}</span>
+                      )}
+                    </span>
+                    <button
+                      onClick={() => setMenuItems((p) => p.filter((_, idx) => idx !== i))}
+                      className="text-xs text-red-500"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+
+      // ADIM 13: Sosyal Medya
+      case 13:
+        return (
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              Sosyal medya hesaplarınızı ekleyin.{" "}
+              <span className="text-zinc-400">(Opsiyonel)</span>
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                { key: "instagram", label: "Instagram", placeholder: "https://instagram.com/…" },
+                { key: "facebook", label: "Facebook", placeholder: "https://facebook.com/…" },
+                { key: "youtube", label: "YouTube", placeholder: "https://youtube.com/…" },
+                { key: "other", label: "Diğer", placeholder: "https://…" },
+              ].map(({ key, label, placeholder }) => (
+                <div key={key}>
+                  <label className={labelCls}>{label}</label>
+                  <input
+                    type="url"
+                    value={form.social_links?.[key] || ""}
+                    onChange={(e) => setSocial(key, e.target.value)}
+                    className={inputCls}
+                    placeholder={placeholder}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      // ADIM 14: Özet / Gönder
+      case 14:
+        return (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-800 dark:bg-emerald-950/40">
+              <h3 className="font-semibold text-emerald-900 dark:text-emerald-200">
+                Tüm adımları tamamladınız!
+              </h3>
+              <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
+                Bilgilerinizi göndermek için aşağıdaki butona tıklayın. Ekibimiz en kısa sürede
+                sitenizi hazırlamaya başlayacaktır.
+              </p>
+            </div>
+            <div className="space-y-2 rounded-xl border border-zinc-200 bg-white p-4 text-sm dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">İşletme Adı</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {form.business_name || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Sektör</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {form.sector || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Hizmetler</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {services.length} adet
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Hizmet Bölgeleri</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {regions.length} adet
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Domain Adayları</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {requestedDomains.join(", ") || "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Renk Paleti</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {form.color_palette ? "✓ Seçildi" : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Logo</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {form.logo_url ? "✓ Yüklendi" : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Sayfalar</span>
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {form.pages?.length || 0} sayfa
+                </span>
+              </div>
+            </div>
+
+            {isAdmin && (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-950/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                      AI Proje Prompt&apos;u
+                    </p>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                      AI editör için site yapım prompt&apos;u oluşturun.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handlePrompt}
+                    disabled={aiLoading.prompt}
+                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {aiLoading.prompt ? "Üretiliyor…" : "Prompt Oluştur"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  }
+
+  // ─── WIZARD RENDER ─────────────────────────────────────────────────────────
+
+  if (wizard) {
+    // Tebrik sayfası
+    if (step === 15) {
+      return (
+        <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-16 text-center">
+          <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-4xl dark:bg-emerald-900">
+            🎉
+          </div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Tebrikler!</h1>
+          <p className="mt-3 max-w-sm text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            Kurulum formunu başarıyla doldurdunuz. Ekibimiz en kısa sürede sitenizi yapıp size
+            bilgi verecektir.
+          </p>
+          <div className="mt-8 rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-4 dark:border-emerald-800 dark:bg-emerald-950/40">
+            <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+              ✓ Form başarıyla gönderildi
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Karşılama ekranı
+    if (step === 0) {
+      return (
+        <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-16 text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 text-2xl text-white dark:bg-zinc-100 dark:text-zinc-900">
+            📋
+          </div>
+          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Kurulum Formu</h1>
+          {form.business_name && (
+            <p className="mt-1 text-base font-medium text-zinc-600 dark:text-zinc-400">
+              {form.business_name}
+            </p>
+          )}
+          <p className="mt-3 max-w-sm text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+            Bu formu doldurarak sitenizin yapımı için gerekli bilgileri ekibimizle paylaşacaksınız.
+            Form <strong>{TOTAL_STEPS} adımdan</strong> oluşmaktadır, her adımda bilgileriniz otomatik kaydedilir.
+          </p>
+          <button
+            onClick={() => setStep(1)}
+            className="mt-8 rounded-xl bg-zinc-900 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            Kuruluma Başla →
+          </button>
+        </div>
+      );
+    }
+
+    // Wizard adımları (1–14)
+    const progress = step === 14 ? 100 : ((step - 1) / TOTAL_STEPS) * 100;
+    const currentStepTitle =
+      step <= TOTAL_STEPS ? WIZARD_STEPS[step - 1]?.title : "Özet";
+
+    return (
+      <div className="pb-28 pt-0">
+        {/* ─── Başlık + İlerleme (fixed top) ─── */}
+        <div className="fixed left-0 right-0 top-0 z-20 border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95">
+          <div className="mx-auto max-w-2xl px-4 py-3">
+            <div className="flex items-center gap-3">
+              {/* Geri ikon butonu */}
+              <button
+                onClick={handleBack}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+                title="Geri"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              {/* İlerleme çubuğu */}
+              <div className="flex-1">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    {step <= TOTAL_STEPS ? `Adım ${step} / ${TOTAL_STEPS}` : "Tamamlandı"}
+                  </span>
+                  <span className="text-xs text-zinc-400">{Math.round(progress)}%</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+                  <div
+                    className="h-full rounded-full bg-zinc-900 transition-all duration-300 dark:bg-zinc-100"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            <h2 className="mt-2 text-base font-semibold text-zinc-900 dark:text-zinc-50">
+              {currentStepTitle}
+            </h2>
+          </div>
+        </div>
+
+        {/* ─── Adım İçeriği (üst header yüksekliği kadar boşluk) ─── */}
+        <div className="mx-auto w-full max-w-2xl px-4 pb-4 pt-28">
+          {renderStepContent()}
+        </div>
+
+        {/* ─── Alt Navigasyon (fixed bottom) ─── */}
+        <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
+          <div className="mx-auto max-w-2xl px-4 py-3">
+            {stepError && (
+              <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                ⚠ {stepError}
+              </p>
+            )}
+            {step <= TOTAL_STEPS ? (
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  onClick={handleBack}
+                  className="rounded-lg border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  ← Geri
+                </button>
+                <button
+                  onClick={handleNext}
+                  disabled={saving}
+                  className="rounded-lg bg-zinc-900 px-8 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  {saving ? "Kaydediliyor…" : "İlerle →"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                {saveMsg && (
+                  <span
+                    className={`text-sm font-medium ${saveMsg.startsWith("Hata") ? "text-red-600" : "text-emerald-600"}`}
+                  >
+                    {saveMsg}
+                  </span>
+                )}
+                <button
+                  onClick={handleSubmit}
+                  disabled={saving}
+                  className="w-full rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  {saving ? "Gönderiliyor…" : "Kaydet ve Gönder ✓"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {promptModal && (
+          <PromptModal text={promptText} onClose={() => setPromptModal(false)} />
+        )}
+      </div>
+    );
+  }
+
+  // ─── DÜZLÜM FORMU (wizard=false, CRM admin için) ──────────────────────────
 
   return (
     <div className="space-y-4">
-      {/* ===== TEMEL BİLGİLER ===== */}
+      {/* TEMEL BİLGİLER */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Temel Bilgiler</h3>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>İşletme Adı</label>
@@ -282,16 +1416,13 @@ export default function InstallationForm({
             />
           </div>
         </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Cep Telefonu</label>
             <input
               type="tel"
               value={form.contact_phone}
-              onChange={(e) =>
-                set("contact_phone", formatPhone(e.target.value, "mobile"))
-              }
+              onChange={(e) => set("contact_phone", formatPhone(e.target.value, "mobile"))}
               className={inputCls}
               placeholder="05XX XXX XX XX"
               maxLength={14}
@@ -311,16 +1442,13 @@ export default function InstallationForm({
             <input
               type="tel"
               value={form.landline_phone}
-              onChange={(e) =>
-                set("landline_phone", formatPhone(e.target.value, "landline"))
-              }
+              onChange={(e) => set("landline_phone", formatPhone(e.target.value, "landline"))}
               className={inputCls}
               placeholder="0XXX XXX XX XX"
               maxLength={14}
             />
           </div>
         </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>E-posta</label>
@@ -333,7 +1461,7 @@ export default function InstallationForm({
             />
           </div>
           <div>
-            <label className={labelCls}>Yetkili Telefonu (CRM iç iletişim)</label>
+            <label className={labelCls}>Yetkili Telefonu (iç iletişim)</label>
             <input
               type="tel"
               value={form.authorized_person_phone}
@@ -349,7 +1477,6 @@ export default function InstallationForm({
             />
           </div>
         </div>
-
         <div>
           <label className={labelCls}>Adres</label>
           <textarea
@@ -360,99 +1487,25 @@ export default function InstallationForm({
             placeholder="Mahalle, Sokak, No, İlçe / İl"
           />
         </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={labelCls}>Google Maps Linki</label>
-            <input
-              type="url"
-              value={form.google_maps_link}
-              onChange={(e) => set("google_maps_link", e.target.value)}
-              className={inputCls}
-              placeholder="https://maps.google.com/…"
-            />
-          </div>
-          <div>
-            <label className={labelCls}>Google İşletme Profil Linki</label>
-            <input
-              type="url"
-              value={form.social_links?.google_business || ""}
-              onChange={(e) => setSocial("google_business", e.target.value)}
-              className={inputCls}
-              placeholder="https://g.page/…"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ===== ÇALIŞMA SAATLERİ ===== */}
-      <section className={sectionCls}>
-        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Çalışma Saatleri</h3>
-        <WorkingHours
-          value={form.working_hours}
-          onChange={(v) => set("working_hours", v)}
-        />
-      </section>
-
-      {/* ===== LOGO ===== */}
-      <section className={sectionCls}>
-        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Logo</h3>
-        <LogoSection
-          logoUrl={form.logo_url}
-          sector={form.sector}
-          businessName={form.business_name}
-          brandTone={form.brand_tone}
-          colorPalette={form.color_palette}
-          onLogoChange={(url) => set("logo_url", url)}
-          onUpload={handleLogoUpload}
-          isPublic={isPublic}
-        />
-      </section>
-
-      {/* ===== GALERİ ===== */}
-      <section className={sectionCls}>
-        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
-          Site Görselleri
-          <span className="ml-1 text-xs font-normal text-zinc-400">
-            (max 20 görsel, 3 MB)
-          </span>
-        </h3>
-        <div
-          className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 p-6 text-center hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
-          onClick={() => galleryInputRef.current?.click()}
-        >
-          <p className="text-sm text-zinc-500">Görselleri buraya sürükleyin veya tıklayın</p>
-          <p className="mt-1 text-xs text-zinc-400">PNG, JPG, WEBP — maks. 3 MB her biri</p>
+        <div>
+          <label className={labelCls}>Google Maps Linki</label>
           <input
-            ref={galleryInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={handleGalleryUpload}
+            type="url"
+            value={form.google_maps_link}
+            onChange={(e) => set("google_maps_link", e.target.value)}
+            className={inputCls}
+            placeholder="https://maps.google.com/…"
           />
         </div>
-        {form.gallery_images.length > 0 && (
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-            {form.gallery_images.map((url, i) => (
-              <div key={i} className="group relative aspect-square overflow-hidden rounded-lg bg-zinc-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="h-full w-full object-cover" />
-                <button
-                  onClick={() =>
-                    set("gallery_images", form.gallery_images.filter((_, idx) => idx !== i))
-                  }
-                  className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 group-hover:opacity-100"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
 
-      {/* ===== HİZMETLER ===== */}
+      {/* ÇALIŞMA SAATLERİ */}
+      <section className={sectionCls}>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Çalışma Saatleri</h3>
+        <WorkingHours value={form.working_hours} onChange={(v) => set("working_hours", v)} />
+      </section>
+
+      {/* HİZMETLER */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Hizmetler</h3>
         <div className="flex gap-2">
@@ -484,7 +1537,10 @@ export default function InstallationForm({
         {services.length > 0 && (
           <ul className="space-y-1.5">
             {services.map((s, i) => (
-              <li key={i} className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+              <li
+                key={i}
+                className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+              >
                 <span className="text-sm text-zinc-800 dark:text-zinc-200">
                   <strong>{s.name}</strong>
                   {s.description ? ` — ${s.description}` : ""}
@@ -501,7 +1557,7 @@ export default function InstallationForm({
         )}
       </section>
 
-      {/* ===== HİZMET BÖLGELERİ ===== */}
+      {/* HİZMET BÖLGELERİ */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Hizmet Bölgeleri</h3>
         <div className="flex gap-2">
@@ -551,7 +1607,7 @@ export default function InstallationForm({
         )}
       </section>
 
-      {/* ===== MENÜ / ÜRÜNLER ===== */}
+      {/* MENÜ / ÜRÜNLER */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Menü ve Ürünler</h3>
         <div className="flex gap-2">
@@ -583,7 +1639,10 @@ export default function InstallationForm({
         {menuItems.length > 0 && (
           <ul className="space-y-1.5">
             {menuItems.map((m, i) => (
-              <li key={i} className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+              <li
+                key={i}
+                className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+              >
                 <span className="text-sm">
                   <strong className="text-zinc-800 dark:text-zinc-200">{m.title}</strong>
                   {m.description ? (
@@ -602,7 +1661,7 @@ export default function InstallationForm({
         )}
       </section>
 
-      {/* ===== SOSYAL MEDYA ===== */}
+      {/* SOSYAL MEDYA */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Sosyal Medya</h3>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -626,54 +1685,26 @@ export default function InstallationForm({
         </div>
       </section>
 
-      {/* ===== ALAN ADI TALEPLERI ===== */}
+      {/* ALAN ADI TALEPLERI */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">İstenen Domain Adayları</h3>
-        <p className="text-xs text-zinc-500">Türkçe karakter kullanmayın (ç, ğ, ı, ö, ş, ü)</p>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={domainInput}
-            onChange={(e) => setDomainInput(e.target.value)}
-            className="flex-1 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-            placeholder="example.com"
-          />
-          <button
-            onClick={() => {
-              if (!domainInput.trim()) return;
-              if (/[çğıöşüÇĞİÖŞÜ]/.test(domainInput)) {
-                alert("Domain Türkçe karakter içeremez!");
-                return;
-              }
-              setRequestedDomains((p) => [...p, domainInput.trim().toLowerCase()]);
-              setDomainInput("");
-            }}
-            className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            + Domain Ekle
-          </button>
-        </div>
-        {requestedDomains.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {requestedDomains.map((d, i) => (
-              <span
-                key={i}
-                className="flex items-center gap-1 rounded-full border border-zinc-200 px-3 py-1 font-mono text-xs dark:border-zinc-700"
-              >
-                {d}
-                <button
-                  onClick={() => setRequestedDomains((p) => p.filter((_, idx) => idx !== i))}
-                  className="text-red-500"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+        <p className="text-xs text-zinc-500">
+          Türkçe karakterler otomatik dönüştürülür. Eklenen her domain uygunluk açısından kontrol
+          edilir.
+        </p>
+        <DomainInputRow
+          domainInput={domainInput}
+          setDomainInput={setDomainInput}
+          onAdd={addDomain}
+        />
+        <DomainList
+          domains={requestedDomains}
+          availability={domainAvailability}
+          onRemove={removeDomain}
+        />
       </section>
 
-      {/* ===== RENK PALETİ ===== */}
+      {/* RENK PALETİ */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Renk Paleti</h3>
         <ColorPalette
@@ -685,21 +1716,19 @@ export default function InstallationForm({
         />
       </section>
 
-      {/* ===== MARKA DİLİ & HEDEF ===== */}
+      {/* MARKA KİMLİĞİ */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Marka Kimliği</h3>
-
         <div>
           <label className={labelCls}>Marka Dili</label>
           <div className="mt-2 flex flex-wrap gap-2">
             {BRAND_TONES.map((t) => (
               <label
                 key={t.value}
-                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  form.brand_tone === t.value
+                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.brand_tone === t.value
                     ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
                     : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
-                }`}
+                  }`}
               >
                 <input
                   type="radio"
@@ -714,18 +1743,16 @@ export default function InstallationForm({
             ))}
           </div>
         </div>
-
         <div>
           <label className={labelCls}>Ana Hedef</label>
           <div className="mt-2 flex flex-wrap gap-2">
             {MAIN_GOALS.map((g) => (
               <label
                 key={g.value}
-                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  form.main_goal === g.value
+                className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.main_goal === g.value
                     ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
                     : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
-                }`}
+                  }`}
               >
                 <input
                   type="radio"
@@ -740,7 +1767,6 @@ export default function InstallationForm({
             ))}
           </div>
         </div>
-
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className={labelCls}>Rakip / Referans Site</label>
@@ -758,11 +1784,10 @@ export default function InstallationForm({
               {SIMILARITY_LEVELS.map((s) => (
                 <label
                   key={s.value}
-                  className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-                    form.similarity_level === s.value
+                  className={`cursor-pointer rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${form.similarity_level === s.value
                       ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
                       : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"
@@ -780,14 +1805,11 @@ export default function InstallationForm({
         </div>
       </section>
 
-      {/* ===== HAKKIMIZDA & SLOGAN ===== */}
+      {/* HAKKIMIZDA & SLOGAN */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">İçerik</h3>
-
         <div>
-          <div className="flex items-center justify-between">
-            <label className={labelCls}>Slogan / Kısa Açıklama</label>
-          </div>
+          <label className={labelCls}>Slogan / Kısa Açıklama</label>
           <input
             type="text"
             value={form.slogan}
@@ -796,7 +1818,6 @@ export default function InstallationForm({
             placeholder="Güvenilir ve hızlı hizmet…"
           />
         </div>
-
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
             <label className={labelCls}>Hakkımızda Metni</label>
@@ -819,43 +1840,83 @@ export default function InstallationForm({
         </div>
       </section>
 
-      {/* ===== SAYFALAR ===== */}
+      {/* SAYFALAR */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Sitede Olacak Sayfalar</h3>
-        <PageSelector
-          value={form.pages}
-          onChange={(v) => set("pages", v)}
-        />
-        <div className="mt-3 flex gap-2">
-          <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-            <input
-              type="checkbox"
-              checked={form.kvkk_required}
-              onChange={(e) => set("kvkk_required", e.target.checked)}
-              className="rounded"
-            />
-            KVKK sayfası eklensin
-          </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-            <input
-              type="checkbox"
-              checked={form.privacy_required}
-              onChange={(e) => set("privacy_required", e.target.checked)}
-              className="rounded"
-            />
-            Gizlilik Sözleşmesi eklensin
-          </label>
-        </div>
+        <PageSelector value={form.pages} onChange={(v) => set("pages", v)} />
       </section>
 
-      {/* ===== ADMIN: PROMPT BUTONU ===== */}
+      {/* LOGO */}
+      <section className={sectionCls}>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Logo</h3>
+        <LogoSection
+          logoUrl={form.logo_url}
+          logoGenerate={form.logo_generate}
+          logoAiUrls={form.logo_ai_urls}
+          sector={form.sector}
+          businessName={form.business_name}
+          services={services}
+          colorPalette={form.color_palette}
+          projectId={projectId}
+          onLogoChange={(url) => set("logo_url", url)}
+          onAiGenerated={(urls) => {
+            set("logo_ai_urls", urls);
+            set("logo_generate", true);
+          }}
+        />
+      </section>
+
+      {/* GALERİ */}
+      <section className={sectionCls}>
+        <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">
+          Site Görselleri
+          <span className="ml-1 text-xs font-normal text-zinc-400">(max 20 görsel, 3 MB)</span>
+        </h3>
+        <div
+          className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 p-6 text-center hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
+          onClick={() => galleryInputRef.current?.click()}
+        >
+          <p className="text-sm text-zinc-500">Görselleri buraya sürükleyin veya tıklayın</p>
+          <p className="mt-1 text-xs text-zinc-400">PNG, JPG, WEBP — maks. 3 MB her biri</p>
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleGalleryUpload}
+          />
+        </div>
+        {form.gallery_images.length > 0 && (
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {form.gallery_images.map((url, i) => (
+              <div key={i} className="group relative aspect-square overflow-hidden rounded-lg bg-zinc-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button
+                  onClick={() =>
+                    set("gallery_images", form.gallery_images.filter((_, idx) => idx !== i))
+                  }
+                  className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 group-hover:opacity-100"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ADMIN: PROMPT BUTONU */}
       {isAdmin && (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-950/50">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">AI Proje Prompt&apos;u</p>
+              <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                AI Proje Prompt&apos;u
+              </p>
               <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                Bu formu kullanarak AI edit&ouml;r&uuml; için site yapım prompt&apos;u oluşturun.
+                Bu formu kullanarak AI editör için site yapım prompt&apos;u oluşturun.
               </p>
             </div>
             <button
@@ -869,7 +1930,7 @@ export default function InstallationForm({
         </div>
       )}
 
-      {/* ===== Kaydet butonları (sticky) ===== */}
+      {/* Kaydet butonları */}
       <div className="sticky bottom-0 left-0 right-0 z-20 border-t border-zinc-200 bg-white/95 py-3 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">
         <div className="flex items-center gap-3">
           {saveMsg && (
@@ -898,7 +1959,7 @@ export default function InstallationForm({
         </div>
       </div>
 
-      {/* ===== Kaydet ve Gönder onay modal ===== */}
+      {/* Kaydet ve Gönder onay modal */}
       {confirmModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -912,8 +1973,7 @@ export default function InstallationForm({
               Kurulum Formunu Gönder
             </h3>
             <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
-              Formu kaydedip site yapımına göndermek istediğinize emin misiniz?             Form gönderildikten sonra
-              düzenleme kilitlenmez ancak &ldquo;gönderildi&rdquo; olarak işaretlenir.
+              Formu kaydedip site yapımına göndermek istediğinize emin misiniz?
             </p>
             <div className="flex gap-2">
               <button
@@ -936,12 +1996,8 @@ export default function InstallationForm({
         </div>
       )}
 
-      {/* ===== Prompt modal ===== */}
       {promptModal && (
-        <PromptModal
-          text={promptText}
-          onClose={() => setPromptModal(false)}
-        />
+        <PromptModal text={promptText} onClose={() => setPromptModal(false)} />
       )}
     </div>
   );

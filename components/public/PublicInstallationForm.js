@@ -7,7 +7,6 @@ export default function PublicInstallationForm({ token }) {
   const [formData, setFormData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     fetch(`/api/installation/public/${token}`)
@@ -46,37 +45,18 @@ export default function PublicInstallationForm({ token }) {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <header className="border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="mx-auto max-w-3xl">
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">Kurulum Formu</h1>
-          <p className="text-sm text-zinc-500">
-            Lütfen aşağıdaki bilgileri eksiksiz doldurun.
-          </p>
-        </div>
-      </header>
-
-      {saved && (
-        <div className="mx-auto mt-4 max-w-3xl px-4">
-          <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
-            Form başarıyla gönderildi. En kısa sürede dönüş yapılacaktır.
-          </div>
-        </div>
-      )}
-
-      <main className="mx-auto max-w-3xl px-4 py-6">
-        <InstallationForm
-          initialData={formData}
-          projectId={formData?.project_id}
-          isAdmin={false}
-          isPublic={true}
-          apiUrl={`/api/installation/public/${token}`}
-          method="PUT"
-          onSave={(updated) => {
-            setFormData(updated);
-            if (updated.is_completed) setSaved(true);
-          }}
-        />
-      </main>
+      <InstallationForm
+        initialData={formData}
+        projectId={formData?.project_id}
+        isAdmin={false}
+        isPublic={true}
+        wizard={true}
+        apiUrl={`/api/installation/public/${token}`}
+        method="PUT"
+        onSave={(updated) => {
+          setFormData(updated);
+        }}
+      />
     </div>
   );
 }
