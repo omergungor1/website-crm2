@@ -19,25 +19,28 @@ const PAGE_OPTIONS = [
   "Referanslar",
 ];
 
-const STATUS_LABEL = { pending: "Beklemede", in_progress: "Yapılıyor", completed: "Tamamlandı" };
+const STATUS_LABEL = { pending: "Beklemede", in_progress: "Yapılıyor", completed: "Tamamlandı", cancelled: "İptal Edildi" };
 const STATUS_COLOR = {
   pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
   in_progress: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
   completed: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
+  cancelled: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
 };
 
-export default function UpdatesTab({ projectId, projectName, isAdmin }) {
+export default function UpdatesTab({ projectId, projectName, isAdmin, publicToken }) {
   const supabase = createClient();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ allPages: false, pages: [], description: "", images: [] });
+  const [form, setForm] = useState({ title: "", allPages: false, pages: [], description: "", images: [] });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [promptModal, setPromptModal] = useState(null);
   const [promptLoading, setPromptLoading] = useState(null);
+  const [copied, setCopied] = useState(false);
   const fileRef = useRef(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const publicUpdateUrl = publicToken ? `${origin}/public/update/${publicToken}` : null;
 
   useEffect(() => {
     fetch(`/api/updates?project_id=${projectId}`)
@@ -65,7 +68,14 @@ export default function UpdatesTab({ projectId, projectName, isAdmin }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.description.trim()) return;
+    if (!form.title.trim() || !form.description.trim()) {
+      setSaveMsg("Başlık ve detaylı açıklama zorunludur.");
+      return;
+    }
+    if (!form.allPages && form.pages.length === 0) {
+      setSaveMsg("Tüm sayfalar veya en az bir sayfa seçmelisiniz.");
+      return;
+    }
     setSaving(true);
     setSaveMsg("");
     const pages = form.allPages ? ["Tüm Sayfalar"] : form.pages;
@@ -74,6 +84,7 @@ export default function UpdatesTab({ projectId, projectName, isAdmin }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         project_id: projectId,
+        title: form.title,
         pages,
         description: form.description,
         image_urls: form.images,
@@ -87,7 +98,7 @@ export default function UpdatesTab({ projectId, projectName, isAdmin }) {
     }
     setRequests((p) => [data, ...p]);
     setShowForm(false);
-    setForm({ allPages: false, pages: [], description: "", images: [] });
+    setForm({ title: "", allPages: false, pages: [], description: "", images: [] });
   }
 
   async function handleStatusChange(id, status) {
@@ -125,29 +136,46 @@ export default function UpdatesTab({ projectId, projectName, isAdmin }) {
     }));
   };
 
-  const publicUpdateUrl = `${origin}/public/update/${projectId}`;
+  async function handleCopy() {
+    if (!publicUpdateUrl) return;
+    await navigator.clipboard.writeText(publicUpdateUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Güncelleme Talepleri</h2>
-          <p className="text-xs text-zinc-500">
-            Paylaşılabilir link:{" "}
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Güncelleme Talepleri</h2>
+        <div className="flex items-center gap-2">
+          {publicUpdateUrl && (
             <button
-              onClick={() => navigator.clipboard.writeText(publicUpdateUrl)}
-              className="font-mono text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              onClick={handleCopy}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                copied
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
+                  : "border-zinc-200 text-zinc-600 hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
+              }`}
             >
-              Kopyala
+              {copied ? (
+                <>✓ Kopyalandı!</>
+              ) : (
+                <>
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Paylaş
+                </>
+              )}
             </button>
-          </p>
+          )}
+          <button
+            onClick={() => setShowForm(true)}
+            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            + Yeni Güncelleme
+          </button>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          + Yeni Güncelleme
-        </button>
       </div>
 
       {/* Yeni talep formu */}
@@ -157,6 +185,20 @@ export default function UpdatesTab({ projectId, projectName, isAdmin }) {
           className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"
         >
           <h3 className="font-medium text-zinc-900 dark:text-zinc-50">Yeni Güncelleme Talebi</h3>
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Başlık <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={form.title}
+              onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+              className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              placeholder="Örn: İletişim sayfası formu güncellensin"
+            />
+          </div>
 
           <div>
             <label className="mb-2 flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -300,6 +342,7 @@ export default function UpdatesTab({ projectId, projectName, isAdmin }) {
                         <option value="pending">Beklemede</option>
                         <option value="in_progress">Yapılıyor</option>
                         <option value="completed">Tamamlandı</option>
+                        <option value="cancelled">İptal Edildi</option>
                       </select>
                       <button
                         onClick={() => handlePrompt(req)}
@@ -326,7 +369,12 @@ export default function UpdatesTab({ projectId, projectName, isAdmin }) {
                 </div>
               )}
 
-              <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{req.description}</p>
+              {req.title && (
+                <p className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  {req.title}
+                </p>
+              )}
+              <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{req.description}</p>
 
               {req.update_request_images?.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">

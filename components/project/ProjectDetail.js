@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import DomainTab from "@/components/project/DomainTab";
 import InstallationTab from "@/components/project/InstallationTab";
@@ -16,8 +16,20 @@ const TABS = [
   { key: "settings", label: "Ayarlar" },
 ];
 
+const VALID_TABS = TABS.map((t) => t.key);
+
 export default function ProjectDetail({ project, isAdmin, currentUserId }) {
-  const [activeTab, setActiveTab] = useState("installation");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab = VALID_TABS.includes(tabParam) ? tabParam : "installation";
+
+  function setActiveTab(key) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", key);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
+
   const publicToken = project.installation_forms?.[0]?.public_token;
   const publicFormUrl = publicToken
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/public/form/${publicToken}`
@@ -42,11 +54,10 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
           )}
         </div>
         <span
-          className={`rounded-full px-3 py-1 text-xs font-medium ${
-            project.payment_status === "paid"
+          className={`rounded-full px-3 py-1 text-xs font-medium ${project.payment_status === "paid"
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
               : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400"
-          }`}
+            }`}
         >
           {project.payment_status === "paid" ? "Ödendi" : "Beklemede"}
         </span>
@@ -59,11 +70,10 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === tab.key
+              className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.key
                   ? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
                   : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -85,6 +95,7 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
             projectId={project.id}
             projectName={project.name}
             isAdmin={isAdmin}
+            publicToken={project.update_public_token}
           />
         )}
         {activeTab === "domain" && (

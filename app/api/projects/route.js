@@ -34,7 +34,7 @@ export async function POST(request) {
 
   const { data: project, error: projectError } = await supabase
     .from("projects")
-    .insert({ name: name.trim(), user_id: user.id })
+    .insert({ name: name.trim(), user_id: user.id, update_public_token: nanoid(32) })
     .select()
     .single();
 

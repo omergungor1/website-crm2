@@ -29,15 +29,15 @@ const MAIN_GOALS = [
 ];
 
 const WIZARD_STEPS = [
-  { id: 1,  title: "Temel Bilgiler" },
-  { id: 2,  title: "Çalışma Saatleri" },
-  { id: 3,  title: "Hizmetler" },
-  { id: 4,  title: "Hizmet Bölgeleri" },
-  { id: 5,  title: "İçerik" },
-  { id: 6,  title: "Domain Adayları" },
-  { id: 7,  title: "Marka Kimliği" },
-  { id: 8,  title: "Renk Paleti" },
-  { id: 9,  title: "Logo" },
+  { id: 1, title: "Temel Bilgiler" },
+  { id: 2, title: "Çalışma Saatleri" },
+  { id: 3, title: "Hizmetler" },
+  { id: 4, title: "Hizmet Bölgeleri" },
+  { id: 5, title: "İçerik" },
+  { id: 6, title: "Domain Adayları" },
+  { id: 7, title: "Marka Kimliği" },
+  { id: 8, title: "Renk Paleti" },
+  { id: 9, title: "Logo" },
   { id: 10, title: "Site Görselleri" },
   { id: 11, title: "Sayfalar" },
   { id: 12, title: "Menü ve Ürünler" },
@@ -247,6 +247,21 @@ export default function InstallationForm({
     competitor_website: initialData?.competitor_website || "",
     similarity_level: initialData?.similarity_level || "",
     main_goal: initialData?.main_goal || "",
+    color_palette_mode: initialData?.color_palette_mode || (initialData?.color_generate ? "ai" : "preset"),
+    color_generate: initialData?.color_generate || false,
+    color_ai_palettes: (() => {
+      const raw = initialData?.color_ai_palettes;
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    })(),
     kvkk_required: initialData?.kvkk_required || false,
     privacy_required: initialData?.privacy_required || false,
     authorized_person_phone: initialData?.authorized_person_phone || "",
@@ -406,6 +421,25 @@ export default function InstallationForm({
     setTimeout(() => setSaveMsg(""), 3000);
     onSave?.(data);
     return { ok: true };
+  }
+
+  async function persistColorPaletteFields(fields) {
+    try {
+      const res = await fetch(apiUrl, {
+        method: isPublic ? "PUT" : method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "AI renk paleti kaydedilemedi.");
+      onSave?.(data);
+      return { ok: true };
+    } catch (err) {
+      console.error("[InstallationForm] AI renk paleti otomatik kayıt hatası:", err);
+      setSaveMsg("AI renk paleti kaydedilemedi. Lütfen Kaydet ile tekrar deneyin.");
+      setTimeout(() => setSaveMsg(""), 3500);
+      return { ok: false, error: err.message };
+    }
   }
 
   // ─── AI Fonksiyonları ────────────────────────────────────────────────────────
@@ -647,7 +681,7 @@ export default function InstallationForm({
                   value={form.business_name}
                   onChange={(e) => set("business_name", e.target.value)}
                   className={inputCls}
-                  placeholder="ABC Çilingir"
+                  placeholder="ABC İşletmesi"
                 />
               </div>
               <div>
@@ -1077,11 +1111,11 @@ export default function InstallationForm({
             </p>
             {form.color_palette && (
               <div className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 dark:border-emerald-700 dark:bg-emerald-950/40">
-                <div className="flex gap-1.5">
-                  {["primary", "secondary", "accent", "background"].map((k) => (
+                <div className="flex items-center">
+                  {["primary", "secondary", "accent", "background", "text"].map((k) => (
                     <div
                       key={k}
-                      className="h-5 w-5 rounded-full border border-white/50 shadow-sm"
+                      className="-ml-2 h-6 w-6 rounded-full border-2 border-white shadow-sm first:ml-0 dark:border-emerald-950"
                       style={{ background: form.color_palette[k] }}
                     />
                   ))}
@@ -1097,6 +1131,29 @@ export default function InstallationForm({
               sector={form.sector}
               brandTone={form.brand_tone}
               mainGoal={form.main_goal}
+              projectId={projectId}
+              mode={form.color_palette_mode}
+              aiPalettes={form.color_ai_palettes}
+              onModeChange={(nextMode) => {
+                set("color_palette_mode", nextMode);
+                set("color_generate", nextMode === "ai");
+              }}
+              onAIGenerated={async (palettes) => {
+                const defaultPalette = form.color_palette || palettes?.[0]?.colors || null;
+                setForm((prev) => ({
+                  ...prev,
+                  color_palette_mode: "ai",
+                  color_generate: true,
+                  color_ai_palettes: palettes,
+                  color_palette: prev.color_palette || defaultPalette,
+                }));
+                await persistColorPaletteFields({
+                  color_palette_mode: "ai",
+                  color_generate: true,
+                  color_ai_palettes: palettes,
+                  color_palette: defaultPalette,
+                });
+              }}
             />
           </div>
         );
@@ -1491,10 +1548,10 @@ export default function InstallationForm({
     // Karşılama ekranı
     if (step === 0) {
       const STATUS_MAP = {
-        pending:     { label: "Doldurulmadı",     bg: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400" },
-        in_review:   { label: "İnceleniyor",      bg: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400" },
+        pending: { label: "Doldurulmadı", bg: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400" },
+        in_review: { label: "İnceleniyor", bg: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400" },
         in_progress: { label: "Yapım Aşamasında", bg: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" },
-        completed:   { label: "Tamamlandı",       bg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" },
+        completed: { label: "Tamamlandı", bg: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" },
       };
       const statusInfo = STATUS_MAP[formStatus] || STATUS_MAP.pending;
 
@@ -1682,7 +1739,7 @@ export default function InstallationForm({
               value={form.business_name}
               onChange={(e) => set("business_name", e.target.value)}
               className={inputCls}
-              placeholder="ABC Çilingir"
+              placeholder="ABC İşletmesi"
             />
           </div>
           <div>
@@ -1993,6 +2050,29 @@ export default function InstallationForm({
           sector={form.sector}
           brandTone={form.brand_tone}
           mainGoal={form.main_goal}
+          projectId={projectId}
+          mode={form.color_palette_mode}
+          aiPalettes={form.color_ai_palettes}
+          onModeChange={(nextMode) => {
+            set("color_palette_mode", nextMode);
+            set("color_generate", nextMode === "ai");
+          }}
+          onAIGenerated={async (palettes) => {
+            const defaultPalette = form.color_palette || palettes?.[0]?.colors || null;
+            setForm((prev) => ({
+              ...prev,
+              color_palette_mode: "ai",
+              color_generate: true,
+              color_ai_palettes: palettes,
+              color_palette: prev.color_palette || defaultPalette,
+            }));
+            await persistColorPaletteFields({
+              color_palette_mode: "ai",
+              color_generate: true,
+              color_ai_palettes: palettes,
+              color_palette: defaultPalette,
+            });
+          }}
         />
       </section>
 

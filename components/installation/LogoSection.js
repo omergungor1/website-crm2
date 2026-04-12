@@ -149,7 +149,7 @@ export default function LogoSection({
                 {generating ? (
                   <>
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    3 Logo Üretiliyor… (bu ~30 sn sürebilir)
+                    Logolar Üretiliyor… (bu ~30 sn sürebilir. Sayfayı yenilemeyin!)
                   </>
                 ) : (
                   "AI ile 3 Logo Üret"
@@ -170,11 +170,10 @@ export default function LogoSection({
                       key={i}
                       type="button"
                       onClick={() => onLogoChange(url)}
-                      className={`group relative overflow-hidden rounded-xl border-2 bg-white p-2 transition-all dark:bg-zinc-800 ${
-                        isSelected
-                          ? "border-indigo-600 shadow-md shadow-indigo-100 dark:border-indigo-400"
-                          : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-700"
-                      }`}
+                      className={`group relative overflow-hidden rounded-xl border-2 bg-white p-2 transition-all dark:bg-zinc-800 ${isSelected
+                        ? "border-indigo-600 shadow-md shadow-indigo-100 dark:border-indigo-400"
+                        : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-700"
+                        }`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -211,11 +210,10 @@ export default function LogoSection({
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
             onClick={() => fileRef.current?.click()}
-            className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
-              dragOver
-                ? "border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-950/30"
-                : "border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
-            }`}
+            className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${dragOver
+              ? "border-indigo-400 bg-indigo-50 dark:border-indigo-600 dark:bg-indigo-950/30"
+              : "border-zinc-300 hover:border-zinc-400 dark:border-zinc-600 dark:hover:border-zinc-500"
+              }`}
           >
             <div className="flex flex-col items-center gap-2">
               <svg className="h-8 w-8 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

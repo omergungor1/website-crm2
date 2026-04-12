@@ -64,7 +64,7 @@ export default function NewProjectButton() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                  placeholder="Örn: ABC Çilingir Web Sitesi"
+                  placeholder="Örn: ABC İşletme Web Sitesi"
                 />
               </div>
               {error && (

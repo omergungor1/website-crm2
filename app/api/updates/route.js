@@ -38,10 +38,15 @@ export async function POST(request) {
   if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
   const body = await request.json();
-  const { project_id, pages, description, image_urls } = body;
+  const { project_id, title, pages, description, image_urls } = body;
+  const normalizedPages = Array.isArray(pages) ? pages.filter(Boolean) : [];
+  const allPagesSelected = normalizedPages.includes("Tüm Sayfalar");
 
-  if (!project_id || !description?.trim()) {
-    return NextResponse.json({ error: "project_id ve açıklama gerekli" }, { status: 400 });
+  if (!project_id || !title?.trim() || !description?.trim()) {
+    return NextResponse.json({ error: "project_id, başlık ve açıklama gerekli" }, { status: 400 });
+  }
+  if (!allPagesSelected && normalizedPages.length === 0) {
+    return NextResponse.json({ error: "Tüm sayfalar veya en az bir sayfa seçilmelidir." }, { status: 400 });
   }
 
   const { data: project } = await supabase
@@ -59,7 +64,8 @@ export async function POST(request) {
     .from("update_requests")
     .insert({
       project_id,
-      pages: pages || [],
+      title: title.trim(),
+      pages: normalizedPages,
       description: description.trim(),
       created_by: user.id,
     })

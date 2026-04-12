@@ -54,57 +54,106 @@ const COLOR_LABELS = {
   text: "Metin",
 };
 
-export default function ColorPalette({ value, onChange, sector, brandTone, mainGoal }) {
-  const [mode, setMode] = useState("preset");
+export default function ColorPalette({
+  value,
+  onChange,
+  sector,
+  brandTone,
+  mainGoal,
+  projectId,
+  mode = "preset",
+  aiPalettes = [],
+  onModeChange,
+  onAIGenerated,
+}) {
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiPalettes, setAiPalettes] = useState([]);
+  const [error, setError] = useState("");
   const [manual, setManual] = useState(value || { primary: "#000000", secondary: "#444444", accent: "#888888", background: "#ffffff", text: "#111111" });
 
+  const safeMode = ["ai", "preset", "manual"].includes(mode) ? mode : "preset";
+  const generatedAiPalettes = Array.isArray(aiPalettes) ? aiPalettes : [];
+  const hasGeneratedAiPalettes = generatedAiPalettes.length > 0;
+  const displayPalettes = safeMode === "ai" ? generatedAiPalettes : PRESET_PALETTES;
+  const showGenerateSection = safeMode === "ai" && !hasGeneratedAiPalettes;
+
   async function handleAIGenerate() {
+    if (hasGeneratedAiPalettes) return;
     setAiLoading(true);
+    setError("");
     try {
       const res = await fetch("/api/ai/colors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sector, brand_tone: brandTone, main_goal: mainGoal }),
+        body: JSON.stringify({
+          sector,
+          brand_tone: brandTone,
+          main_goal: mainGoal,
+          project_id: projectId,
+        }),
       });
+
       const data = await res.json();
-      setAiPalettes(data.palettes || []);
-      if (data.palettes?.length) {
-        setMode("ai");
-      }
+      if (!res.ok) throw new Error(data.error || "AI renk paleti üretilemedi.");
+
+      const palettes = Array.isArray(data.palettes) ? data.palettes : [];
+      if (!palettes.length) throw new Error("AI geçerli bir palet üretemedi.");
+
+      onAIGenerated?.(palettes);
+      onModeChange?.("ai");
+    } catch (err) {
+      setError(err.message || "AI renk paleti üretilemedi.");
     } finally {
       setAiLoading(false);
     }
   }
 
-  const displayPalettes = mode === "ai" ? aiPalettes : PRESET_PALETTES;
+  function handleModeChange(nextMode) {
+    onModeChange?.(nextMode);
+    setError("");
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setMode("preset")}
-          className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${mode === "preset" ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900" : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"}`}
-        >
-          Hazır Paletler
-        </button>
-        <button
-          onClick={() => setMode("manual")}
-          className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${mode === "manual" ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900" : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"}`}
-        >
-          Elle Gir
-        </button>
-        <button
-          onClick={handleAIGenerate}
-          disabled={aiLoading}
-          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
-        >
-          {aiLoading ? "Üretiliyor…" : "AI Uyumlu Palet Üret"}
-        </button>
+      <div className="flex flex-wrap gap-3">
+        {[
+          { key: "ai", label: "AI ile oluştur" },
+          { key: "preset", label: "Hazır renkler" },
+          { key: "manual", label: "Elle gir" },
+        ].map((option) => (
+          <label key={option.key} className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-300">
+            <input
+              type="radio"
+              name="color_palette_mode"
+              value={option.key}
+              checked={safeMode === option.key}
+              onChange={() => handleModeChange(option.key)}
+              className="accent-indigo-600"
+            />
+            {option.label}
+          </label>
+        ))}
       </div>
 
-      {mode === "manual" ? (
+      {showGenerateSection && (
+        <div className="rounded-xl border border-dashed border-indigo-300 bg-indigo-50 p-4 dark:border-indigo-700 dark:bg-indigo-950/30">
+          <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+            AI ile 3 farklı renk paleti oluşturabilirsiniz.
+          </p>
+          <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-400">
+            Bu işlem bir kez yapılır ve üretilen paletler otomatik kaydedilir.
+          </p>
+          <button
+            type="button"
+            onClick={handleAIGenerate}
+            disabled={aiLoading}
+            className="mt-3 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+          >
+            {aiLoading ? "Üretiliyor..." : "AI Uyumlu Palet Üret"}
+          </button>
+        </div>
+      )}
+
+      {safeMode === "manual" ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {COLOR_KEYS.map((key) => (
             <div key={key} className="text-center">
@@ -124,7 +173,7 @@ export default function ColorPalette({ value, onChange, sector, brandTone, mainG
                     setManual(updated);
                     onChange(updated);
                   }}
-                  className="absolute inset-0 opacity-0 cursor-pointer h-full w-full"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                 />
               </div>
               <input
@@ -141,25 +190,25 @@ export default function ColorPalette({ value, onChange, sector, brandTone, mainG
             </div>
           ))}
         </div>
-      ) : (
+      ) : displayPalettes.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {displayPalettes.map((palette, i) => {
             const isSelected = JSON.stringify(value) === JSON.stringify(palette.colors);
             return (
               <button
                 key={i}
+                type="button"
                 onClick={() => onChange(palette.colors)}
-                className={`rounded-xl border p-3 text-left transition-all hover:shadow-md ${
-                  isSelected
-                    ? "border-zinc-900 shadow-sm dark:border-zinc-100"
-                    : "border-zinc-200 dark:border-zinc-700"
-                }`}
+                className={`rounded-xl border p-3 text-left transition-all hover:shadow-md ${isSelected
+                  ? "border-zinc-900 shadow-sm dark:border-zinc-100"
+                  : "border-zinc-200 dark:border-zinc-700"
+                  }`}
               >
-                <div className="flex items-center gap-1.5 mb-2">
-                  {COLOR_KEYS.slice(0, 4).map((k) => (
+                <div className="mb-2 flex items-center">
+                  {COLOR_KEYS.map((k) => (
                     <div
                       key={k}
-                      className="h-6 w-6 rounded-full border border-white/50 shadow-sm"
+                      className="-ml-2 h-7 w-7 rounded-full border-2 border-white shadow-sm first:ml-0 dark:border-zinc-900"
                       style={{ background: palette.colors[k] }}
                     />
                   ))}
@@ -169,6 +218,17 @@ export default function ColorPalette({ value, onChange, sector, brandTone, mainG
             );
           })}
         </div>
+      ) : (
+        <p className="rounded-lg border border-zinc-200 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+          Lütfen yukarıdaki buton ile AI Uyumlu renk paleti üretiniz.
+        </p>
+      )}
+
+
+      {error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-950 dark:text-red-400">
+          {error}
+        </p>
       )}
     </div>
   );

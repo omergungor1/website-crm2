@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/isAdmin";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 import ProjectDetail from "@/components/project/ProjectDetail";
 
 export async function generateMetadata({ params }) {
@@ -19,7 +20,7 @@ export default async function ProjectPage({ params }) {
 
   const { data: project, error } = await supabase
     .from("projects")
-    .select("*, installation_forms(public_token), domains(*)")
+    .select("*, installation_forms(public_token), domains(*), update_public_token")
     .eq("id", id)
     .single();
 
@@ -30,10 +31,12 @@ export default async function ProjectPage({ params }) {
   }
 
   return (
-    <ProjectDetail
-      project={project}
-      isAdmin={admin}
-      currentUserId={user.id}
-    />
+    <Suspense fallback={null}>
+      <ProjectDetail
+        project={project}
+        isAdmin={admin}
+        currentUserId={user.id}
+      />
+    </Suspense>
   );
 }

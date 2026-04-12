@@ -3,6 +3,7 @@ create extension if not exists "uuid-ossp";
 create table projects (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users(id) on delete cascade,
+  update_public_token text unique,
 
   name text not null,
   description text,
@@ -58,6 +59,7 @@ create table installation_forms (
   -- MEDIA
   logo_url text,
   logo_generate boolean default false,
+  logo_ai_urls text[] default array[]::text[],
 
   gallery_images text[],
 
@@ -74,6 +76,10 @@ create table installation_forms (
 
   -- BRAND
   color_palette jsonb,
+  color_palette_mode text default 'preset'
+    check (color_palette_mode in ('ai','preset','manual')),
+  color_generate boolean default false,
+  color_ai_palettes jsonb default '[]'::jsonb,
   brand_tone text check (brand_tone in ('formal','friendly','young','premium')),
 
   -- COMPETITOR
@@ -110,8 +116,9 @@ create table update_requests (
   project_id uuid references projects(id) on delete cascade,
 
   status text default 'pending'
-    check (status in ('pending','in_progress','completed')),
+    check (status in ('pending','in_progress','completed','cancelled')),
 
+  title text not null,
   pages text[],
   custom_page text,
 
@@ -145,31 +152,42 @@ create table site_settings (
   updated_at timestamp default now()
 );
 
-create or replace function update_updated_at_column()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
 
 
 
-create trigger set_updated_at_projects
-before update on projects
-for each row execute function update_updated_at_column();
-
-create trigger set_updated_at_installation_forms
-before update on installation_forms
-for each row execute function update_updated_at_column();
-
-create trigger set_updated_at_update_requests
-before update on update_requests
-for each row execute function update_updated_at_column();
-
-create trigger set_updated_at_site_settings
-before update on site_settings
-for each row execute function update_updated_at_column();
 
 
+CREATE TABLE crm_groups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
 
+
+CREATE TABLE crm_customers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  group_id uuid REFERENCES crm_groups(id) ON DELETE CASCADE,
+
+  -- CSV’den gelen alanlar
+  business_name text,
+  maps_url text,
+  phone_number text,
+  province text,
+  district text,
+  rating numeric,
+  review_count integer,
+
+  -- CRM alanları
+  status text DEFAULT 'pending'
+    CHECK (status IN ('pending', 'callback', 'positive', 'negative')),
+
+  note text DEFAULT '',
+
+  callback_date timestamptz,
+
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX idx_crm_customers_group_status 
+ON crm_customers(group_id, status);
