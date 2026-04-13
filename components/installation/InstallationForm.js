@@ -1728,6 +1728,30 @@ export default function InstallationForm({
 
   return (
     <div className="space-y-4">
+
+      {/* ADMIN: PROMPT BUTONU */}
+      {isAdmin && (
+        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-950/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
+                AI Proje Prompt&apos;u
+              </p>
+              <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                Bu formu kullanarak AI editör için site yapım prompt&apos;u oluşturun.
+              </p>
+            </div>
+            <button
+              onClick={handlePrompt}
+              disabled={aiLoading.prompt}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {aiLoading.prompt ? "Üretiliyor…" : "Prompt Oluştur"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* TEMEL BİLGİLER */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">Temel Bilgiler</h3>
@@ -2293,29 +2317,6 @@ export default function InstallationForm({
           </div>
         )}
       </section>
-
-      {/* ADMIN: PROMPT BUTONU */}
-      {isAdmin && (
-        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-800 dark:bg-indigo-950/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
-                AI Proje Prompt&apos;u
-              </p>
-              <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                Bu formu kullanarak AI editör için site yapım prompt&apos;u oluşturun.
-              </p>
-            </div>
-            <button
-              onClick={handlePrompt}
-              disabled={aiLoading.prompt}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
-            >
-              {aiLoading.prompt ? "Üretiliyor…" : "Prompt Oluştur"}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Kaydet butonları */}
       <div className="sticky bottom-0 left-0 right-0 z-20 border-t border-zinc-200 bg-white/95 py-3 backdrop-blur dark:border-zinc-700 dark:bg-zinc-900/95">

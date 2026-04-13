@@ -252,7 +252,7 @@ export default function PublicUpdateForm({ token }) {
 
           <div>
             <p className="mb-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              ÖRnek Görseller <span className="font-normal text-zinc-400">(opsiyonel, max 20, her biri 3 MB)</span>
+              Örnek Görseller <span className="font-normal text-zinc-400">(opsiyonel, max 20, her biri 3 MB)</span>
             </p>
             <button
               type="button"

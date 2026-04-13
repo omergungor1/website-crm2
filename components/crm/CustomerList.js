@@ -78,11 +78,12 @@ export default function CustomerList({ groupId, status, onStatusChange }) {
           fetchPage(nextPage);
         }
       },
-      { threshold: 0.1 }
+      // Daha erken tetikle: kullanıcı dibe yaklaşınca yükle
+      { threshold: 0.01, rootMargin: "200px 0px" }
     );
     observerRef.current.observe(sentinelRef.current);
     return () => observerRef.current?.disconnect();
-  }, [hasMore, fetchPage]);
+  }, [hasMore, fetchPage, items.length]);
 
   function handleToggle(id) {
     setOpenId((prev) => (prev === id ? null : id));
@@ -125,6 +126,23 @@ export default function CustomerList({ groupId, status, onStatusChange }) {
       {loading && (
         <div className="flex justify-center py-6">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700 dark:border-zinc-600 dark:border-t-zinc-200" />
+        </div>
+      )}
+
+      {!loading && hasMore && items.length > 0 && (
+        <div className="flex justify-center py-4">
+          <button
+            type="button"
+            onClick={() => {
+              if (loadingRef.current) return;
+              const nextPage = pageRef.current + 1;
+              pageRef.current = nextPage;
+              fetchPage(nextPage);
+            }}
+            className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            Daha fazla yükle
+          </button>
         </div>
       )}
 

@@ -186,8 +186,28 @@ CREATE TABLE crm_customers (
 
   callback_date timestamptz,
 
-  created_at timestamptz DEFAULT now()
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  status_changed_at timestamptz
 );
 
 CREATE INDEX idx_crm_customers_group_status 
 ON crm_customers(group_id, status);
+
+-- crm_customers otomatik zaman alanları
+CREATE OR REPLACE FUNCTION set_crm_customers_timestamps()
+RETURNS trigger AS $$
+BEGIN
+  NEW.updated_at = now();
+  IF TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status THEN
+    NEW.status_changed_at = now();
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_set_crm_customers_timestamps ON crm_customers;
+CREATE TRIGGER trg_set_crm_customers_timestamps
+BEFORE UPDATE ON crm_customers
+FOR EACH ROW
+EXECUTE FUNCTION set_crm_customers_timestamps();

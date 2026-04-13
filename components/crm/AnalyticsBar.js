@@ -20,7 +20,7 @@ export default function AnalyticsBar() {
   }, [date]);
 
   const cards = [
-    { label: "Toplam Müşteri", value: stats?.total ?? "—", color: "text-zinc-900 dark:text-zinc-50" },
+    { label: "Aranan Müşteri", value: stats?.calledToday ?? "—", color: "text-zinc-900 dark:text-zinc-50" },
     { label: "Olumlu", value: stats?.positive ?? "—", color: "text-emerald-600 dark:text-emerald-400" },
     { label: "Olumsuz", value: stats?.negative ?? "—", color: "text-red-500 dark:text-red-400" },
     { label: "Tekrar Ara", value: stats?.callback ?? "—", color: "text-amber-500 dark:text-amber-400" },
