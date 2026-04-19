@@ -54,12 +54,17 @@ export default function GroupDetail({ groupId }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      <div>
         <Link
           href="/crm"
-          className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+          className="inline-flex items-center gap-2.5 text-zinc-700 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
         >
-          ← Müşteri CRM
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900">
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z" />
+            </svg>
+          </span>
+          <span className="text-sm font-medium">Müşteri CRM</span>
         </Link>
       </div>
 

@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/isAdmin";
+import { getDashboardCounts } from "@/lib/dashboardCounts";
 import NewProjectButton from "@/components/NewProjectButton";
 import ProjectList from "@/components/ProjectList";
-import Link from "next/link";
+import DashboardFeatureGrid from "@/components/dashboard/DashboardFeatureGrid";
 
-export const metadata = { title: "Dashboard — Site CRM" };
+export const metadata = { title: "Dashboard — WebsiteAlSat CRM" };
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -21,27 +22,23 @@ export default async function DashboardPage() {
 
   const { data: projects } = await query;
 
+  const counts = await getDashboardCounts(supabase, user?.id, admin);
+
   return (
     <div className="space-y-6">
-      {admin && (
-        <Link
-          href="/crm"
-          className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white p-5 transition-all hover:border-zinc-400 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-500"
-        >
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-100 text-2xl dark:bg-zinc-800">
-              👥
-            </div>
-            <div>
-              <p className="font-semibold text-zinc-900 dark:text-zinc-50">Müşteri CRM</p>
-              <p className="text-sm text-zinc-500">Müşteri gruplarını yönet, aramalar takip et</p>
-            </div>
-          </div>
-          <span className="text-zinc-400">→</span>
-        </Link>
-      )}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+          Admin Sayfaları
+        </h2>
+        <DashboardFeatureGrid
+          admin={admin}
+          pendingUpdates={counts.pendingUpdates}
+          pendingInstallations={counts.pendingInstallations}
+          paymentPending={counts.paymentPending}
+        />
+      </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Projeler</h1>
           <p className="text-sm text-zinc-500">

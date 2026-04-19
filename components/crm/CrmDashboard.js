@@ -24,10 +24,23 @@ export default function CrmDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Müşteri CRM</h1>
-          <p className="text-sm text-zinc-500">Müşteri gruplarını yönetin</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <Link
+            href="/dashboard"
+            className="inline-flex shrink-0 items-center gap-2 text-zinc-700 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z" />
+              </svg>
+            </span>
+            <span className="text-sm font-medium">Panele dön</span>
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Müşteri CRM</h1>
+            <p className="text-sm text-zinc-500">Müşteri gruplarını yönetin</p>
+          </div>
         </div>
         <button
           onClick={() => setShowModal(true)}

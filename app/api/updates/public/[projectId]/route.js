@@ -33,6 +33,14 @@ export async function GET(request, { params }) {
   try {
     const activeCount = await countActiveRequests(supabase, project.id);
     const remaining = Math.max(0, MAX_UPDATE_REQUESTS - activeCount);
+
+    const { data: sitePages, error: spErr } = await supabase
+      .from("site_pages")
+      .select("title, sort_order")
+      .eq("project_id", project.id)
+      .order("sort_order", { ascending: true });
+    if (spErr) throw spErr;
+
     return NextResponse.json({
       project_id: project.id,
       project_name: project.name,
@@ -40,6 +48,7 @@ export async function GET(request, { params }) {
       active_request_count: activeCount,
       remaining_request_count: remaining,
       limit_reached: remaining <= 0,
+      site_pages: sitePages || [],
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

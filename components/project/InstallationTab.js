@@ -69,22 +69,16 @@ export default function InstallationTab({ projectId, publicToken: initialToken, 
             <p className="mt-0.5 text-xs text-blue-700 dark:text-blue-400">
               Bu linki müşteriyle paylaşın — giriş yapmadan formu doldurup gönderebilirler.
             </p>
-            {publicUrl && (
-              <p className="mt-1.5 truncate font-mono text-xs text-blue-600 dark:text-blue-400">
-                {publicUrl}
-              </p>
-            )}
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
             <button
               onClick={handleCopy}
               disabled={generatingLink}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                copied
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${copied
                   ? "bg-emerald-600 text-white"
                   : "bg-blue-700 text-white hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700"
-              } disabled:opacity-60`}
+                } disabled:opacity-60`}
             >
               {generatingLink ? (
                 <>

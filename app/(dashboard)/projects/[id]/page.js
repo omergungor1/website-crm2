@@ -20,7 +20,7 @@ export default async function ProjectPage({ params }) {
 
   const { data: project, error } = await supabase
     .from("projects")
-    .select("*, installation_forms(public_token), domains(*), update_public_token")
+    .select("*, installation_forms(public_token), site_pages(*), domains(*), update_public_token")
     .eq("id", id)
     .single();
 

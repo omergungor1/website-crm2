@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import DomainTab from "@/components/project/DomainTab";
+import PagesTab from "@/components/project/PagesTab";
 import InstallationTab from "@/components/project/InstallationTab";
 import UpdatesTab from "@/components/project/UpdatesTab";
 import SettingsTab from "@/components/project/SettingsTab";
@@ -11,6 +12,7 @@ const TABS = [
   { key: "installation", label: "Kurulum Formu" },
   { key: "updates", label: "Güncellemeler" },
   { key: "domain", label: "Domain" },
+  { key: "pages", label: "Sayfalar" },
   { key: "blog", label: "Blog" },
   { key: "messages", label: "Mesajlar" },
   { key: "settings", label: "Ayarlar" },
@@ -38,12 +40,22 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
   return (
     <div className="space-y-4">
       {/* Başlık */}
-      <div className="flex items-center gap-2">
+      <div>
         <Link
           href="/dashboard"
-          className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+          className="inline-flex items-center gap-2 text-zinc-700 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
         >
-          ← Dashboard
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm sm:h-9 sm:w-9 dark:bg-zinc-100 dark:text-zinc-900">
+            <svg
+              className="h-4 w-4 sm:h-[18px] sm:w-[18px]"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden
+            >
+              <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z" />
+            </svg>
+          </span>
+          <span className="text-xs font-medium sm:text-sm">Dashboard</span>
         </Link>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -104,6 +116,7 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
             initialDomains={project.domains || []}
           />
         )}
+        {activeTab === "pages" && <PagesTab sitePages={project.site_pages || []} />}
         {activeTab === "blog" && (
           <div className="rounded-xl border border-zinc-200 p-8 text-center dark:border-zinc-700">
             <p className="text-sm text-zinc-500">Blog özelliği yakında eklenecek.</p>

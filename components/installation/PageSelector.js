@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export const POPULAR_PAGE_LABELS = [
   "Ana Sayfa",
@@ -20,7 +20,17 @@ export const POPULAR_PAGE_LABELS = [
 export default function PageSelector({ value, onChange }) {
   const [customInput, setCustomInput] = useState("");
   const safeValue = Array.isArray(value) ? value : [];
+  const safeKey = useMemo(() => JSON.stringify(safeValue), [safeValue]);
   const customPages = safeValue.filter((p) => !POPULAR_PAGE_LABELS.includes(p));
+  const MUST_HAVE = "Ana Sayfa";
+
+  // Ana Sayfa her zaman seçili olmalı (DB'ye de insert edilsin)
+  useEffect(() => {
+    if (!safeValue.includes(MUST_HAVE)) {
+      onChange([MUST_HAVE, ...safeValue]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeKey]);
 
   const toggle = (page) => {
     if (safeValue.includes(page)) {
@@ -47,8 +57,8 @@ export default function PageSelector({ value, onChange }) {
             onClick={() => toggle(page)}
             disabled={page === "Ana Sayfa"}
             className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${safeValue.includes(page) || page === "Ana Sayfa"
-                ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
+              ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+              : "border-zinc-200 text-zinc-600 hover:border-zinc-400 dark:border-zinc-700 dark:text-zinc-400"
               } disabled:cursor-not-allowed disabled:opacity-80`}
           >
             {page}

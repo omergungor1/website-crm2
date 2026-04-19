@@ -9,6 +9,10 @@ create table projects (
   description text,
 
   payment_status text default 'pending' check (payment_status in ('pending','paid')),
+  status text default 'created'
+    check (status in ('created','preparing','coding','completed')),
+
+  admin_note text,
 
   created_at timestamp default now(),
   updated_at timestamp default now()
@@ -36,11 +40,29 @@ create table domains (
 create index idx_domains_project_id on domains(project_id);
 
 
+-- Sitede yer alan sayfalar (kurulum formundaki pages listesi ile senkron)
+create table site_pages (
+  id uuid primary key default uuid_generate_v4(),
+  project_id uuid not null references projects(id) on delete cascade,
+
+  title text not null,
+  sort_order int not null default 0,
+
+  created_at timestamptz default now()
+);
+create index idx_site_pages_project_id on site_pages(project_id);
+create index idx_site_pages_project_sort on site_pages(project_id, sort_order);
+
+
 create table installation_forms (
   id uuid primary key default uuid_generate_v4(),
   project_id uuid unique references projects(id) on delete cascade,
 
   public_token text unique not null,
+
+  -- İş akışı (proje yönetimi / kurulum); UI ile uyumlu İngilizce değerler
+  status text default 'pending'
+    check (status in ('pending','in_review','in_progress','completed')),
 
   -- BASIC
   business_name text,
@@ -98,17 +120,22 @@ create table installation_forms (
   kvkk_required boolean default false,
   privacy_required boolean default false,
 
-  -- PAGES
-  pages jsonb,
+  -- Sayfa listesi: site_pages tablosunda (project_id ile)
   -- authorized_person_name -> deleted
   -- INTERNAL CONTACT (CRM iç iletişim)
   authorized_person_phone text,
+
+  -- Site hakkında genel istek/not alanı (admin + ekip kullanımı)
+  site_requests text,
 
   is_completed boolean default false,
 
   created_at timestamp default now(),
   updated_at timestamp default now()
 );
+
+-- Eski veritabanlarında installation_forms.pages kaldırmak için (bir kez):
+-- alter table installation_forms drop column if exists pages;
 
 
 create table update_requests (

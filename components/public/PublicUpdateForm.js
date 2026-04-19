@@ -1,20 +1,8 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 
-const PAGE_OPTIONS = [
-  "Ana Sayfa",
-  "Hizmetler",
-  "Hakkımızda",
-  "İletişim",
-  "Hizmet Bölgeleri",
-  "Galeri",
-  "Blog",
-  "Kampanyalar / Fiyatlar",
-  "Ürünler",
-  "S.S.S.",
-  "Referanslar",
-];
+import { titlesFromSitePages } from "@/lib/sitePages";
 
 export default function PublicUpdateForm({ token }) {
   const fileRef = useRef(null);
@@ -27,6 +15,11 @@ export default function PublicUpdateForm({ token }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+
+  const pageOptions = useMemo(
+    () => titlesFromSitePages(projectInfo?.site_pages),
+    [projectInfo?.site_pages]
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -95,7 +88,12 @@ export default function PublicUpdateForm({ token }) {
   function validateForm() {
     if (!form.title.trim()) return "Başlık zorunludur.";
     if (!form.description.trim()) return "Detaylı açıklama zorunludur.";
-    if (!form.allPages && form.pages.length === 0) return "Tüm sayfalar veya en az bir sayfa seçmelisiniz.";
+    if (!form.allPages && pageOptions.length === 0) {
+      return "Site için tanımlı sayfa yok. Lütfen \"Tüm Sayfalarda Geçerli\" seçeneğini işaretleyin veya yöneticinize başvurun.";
+    }
+    if (!form.allPages && form.pages.length === 0) {
+      return "Tüm sayfalar veya en az bir sayfa seçmelisiniz.";
+    }
     if (projectInfo?.limit_reached) {
       return "Güncelleme talep hakkınız dolmuştur, lütfen yöneticiniz ile iletişime geçiniz.";
     }
@@ -170,7 +168,7 @@ export default function PublicUpdateForm({ token }) {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white px-4 py-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mx-auto max-w-2xl">
-          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">Güncelleme Talebi</h1>
+          <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">Güncelleme Talep Formu</h1>
           <p className="text-sm text-zinc-500">
             {projectInfo?.project_name ? `${projectInfo.project_name} için` : "Web siteniz için"} güncelleme talebinizi iletin.
           </p>
@@ -217,21 +215,28 @@ export default function PublicUpdateForm({ token }) {
                 <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   Hangi Sayfa(lar)?
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {PAGE_OPTIONS.map((page) => (
-                    <button
-                      key={page}
-                      type="button"
-                      onClick={() => togglePage(page)}
-                      className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${form.pages.includes(page)
-                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                        : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
-                        }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </div>
+                {pageOptions.length === 0 ? (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                    Kurulumda henüz sayfa tanımlanmamış. Güncelleme için yukarıdan &quot;Tüm Sayfalarda Geçerli&quot;
+                    seçeneğini kullanın.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {pageOptions.map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => togglePage(page)}
+                        className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${form.pages.includes(page)
+                          ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                          : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                          }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

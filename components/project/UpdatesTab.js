@@ -1,23 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import PromptModal from "@/components/installation/PromptModal";
-
-const PAGE_OPTIONS = [
-  "Tüm Sayfalar",
-  "Ana Sayfa",
-  "Hizmetler",
-  "Hakkımızda",
-  "İletişim",
-  "Hizmet Bölgeleri",
-  "Galeri",
-  "Blog",
-  "Kampanyalar / Fiyatlar",
-  "Ürünler",
-  "S.S.S.",
-  "Referanslar",
-];
+import { titlesFromSitePages } from "@/lib/sitePages";
 
 const STATUS_LABEL = { pending: "Beklemede", in_progress: "Yapılıyor", completed: "Tamamlandı", cancelled: "İptal Edildi" };
 const STATUS_COLOR = {
@@ -38,9 +24,27 @@ export default function UpdatesTab({ projectId, projectName, isAdmin, publicToke
   const [promptModal, setPromptModal] = useState(null);
   const [promptLoading, setPromptLoading] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [sitePageRows, setSitePageRows] = useState([]);
   const fileRef = useRef(null);
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const publicUpdateUrl = publicToken ? `${origin}/public/update/${publicToken}` : null;
+
+  const pageOptions = useMemo(() => titlesFromSitePages(sitePageRows), [sitePageRows]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("site_pages")
+        .select("title, sort_order")
+        .eq("project_id", projectId)
+        .order("sort_order", { ascending: true });
+      if (!cancelled && !error) setSitePageRows(data || []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   useEffect(() => {
     fetch(`/api/updates?project_id=${projectId}`)
@@ -70,6 +74,10 @@ export default function UpdatesTab({ projectId, projectName, isAdmin, publicToke
     e.preventDefault();
     if (!form.title.trim() || !form.description.trim()) {
       setSaveMsg("Başlık ve detaylı açıklama zorunludur.");
+      return;
+    }
+    if (!form.allPages && pageOptions.length === 0) {
+      setSaveMsg("Site için tanımlı sayfa yok. \"Tüm Sayfalar\" seçin veya kurulumda sayfa ekleyin.");
       return;
     }
     if (!form.allPages && form.pages.length === 0) {
@@ -151,11 +159,10 @@ export default function UpdatesTab({ projectId, projectName, isAdmin, publicToke
           {publicUpdateUrl && (
             <button
               onClick={handleCopy}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                copied
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${copied
                   ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
                   : "border-zinc-200 text-zinc-600 hover:border-zinc-400 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-200"
-              }`}
+                }`}
             >
               {copied ? (
                 <>✓ Kopyalandı!</>
@@ -211,24 +218,29 @@ export default function UpdatesTab({ projectId, projectName, isAdmin, publicToke
               Tüm Sayfalar
             </label>
 
-            {!form.allPages && (
-              <div className="flex flex-wrap gap-1.5">
-                {PAGE_OPTIONS.slice(1).map((page) => (
-                  <button
-                    key={page}
-                    type="button"
-                    onClick={() => togglePage(page)}
-                    className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
-                      form.pages.includes(page)
-                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                        : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-              </div>
-            )}
+            {!form.allPages &&
+              (pageOptions.length === 0 ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  Henüz kurulumda sayfa tanımlanmamış. Yukarıdan &quot;Tüm Sayfalar&quot; seçin veya önce kurulum
+                  formunda sayfa ekleyin.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {pageOptions.map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => togglePage(page)}
+                      className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${form.pages.includes(page)
+                          ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                          : "border-zinc-200 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400"
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+              ))}
           </div>
 
           <div>

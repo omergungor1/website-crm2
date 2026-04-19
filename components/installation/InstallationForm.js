@@ -7,6 +7,7 @@ import LogoSection from "./LogoSection";
 import PageSelector from "./PageSelector";
 import PromptModal from "./PromptModal";
 import { createClient } from "@/lib/supabase/client";
+import { titlesFromSitePages } from "@/lib/sitePages";
 
 // ─── Sabitler ────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ const WIZARD_STEPS = [
   { id: 11, title: "Sayfalar" },
   { id: 12, title: "Menü ve Ürünler" },
   { id: 13, title: "Sosyal Medya" },
-  { id: 14, title: "Sizi Tanıyalım" },
+  { id: 14, title: "İstekleriniz" },
 ];
 const TOTAL_STEPS = WIZARD_STEPS.length; // 14
 
@@ -272,11 +273,16 @@ export default function InstallationForm({
       if (typeof wh === "string") { try { return JSON.parse(wh); } catch { return null; } }
       return wh;
     })(),
-    pages: Array.isArray(initialData?.pages) ? initialData.pages : [],
+    pages: titlesFromSitePages(initialData?.site_pages),
     social_links: initialData?.social_links || {},
     gallery_images: initialData?.gallery_images || [],
     is_completed: initialData?.is_completed || false,
   });
+
+  const sitePagesSyncKey = JSON.stringify(titlesFromSitePages(initialData?.site_pages));
+  useEffect(() => {
+    setForm((p) => ({ ...p, pages: titlesFromSitePages(initialData?.site_pages) }));
+  }, [sitePagesSyncKey]);
 
   const [services, setServices] = useState(
     Array.isArray(initialData?.services) ? initialData.services : []
@@ -309,18 +315,7 @@ export default function InstallationForm({
   // Form tamamlandıysa salt okunur modda aç (admin her zaman düzenleyebilir)
   const isCompleted = !isAdmin && (form.is_completed === true);
 
-  // AI Soru-Cevap state'i
-  // Her eleman: { question: string, answer: string }
-  const [aiQuestions, setAiQuestions] = useState(() => {
-    const raw = initialData?.ai_questions;
-    if (Array.isArray(raw) && raw.length > 0) return raw;
-    if (typeof raw === "string") {
-      try { const p = JSON.parse(raw); if (Array.isArray(p)) return p; } catch { /* */ }
-    }
-    return [];
-  });
-  const [questionsLoading, setQuestionsLoading] = useState(false);
-  const [questionsError, setQuestionsError] = useState("");
+  const [site_requests, setSiteRequests] = useState(initialData?.site_requests || "");
 
   // status: wizard karşılama ekranında gösterilir, admin güncelleyebilir
   const [formStatus, setFormStatus] = useState(initialData?.status || "pending");
@@ -392,7 +387,7 @@ export default function InstallationForm({
       menu_items: menuItems,
       requested_domains: requestedDomains,
       domain_availability: domainAvailabilityForDb,
-      ai_questions: aiQuestions,
+      site_requests,
       is_completed: markCompleted ? true : form.is_completed,
       status: markCompleted ? "in_review" : formStatus,
     };
@@ -420,6 +415,9 @@ export default function InstallationForm({
     setSaveMsg(markCompleted ? "Gönderildi!" : "Kaydedildi!");
     setTimeout(() => setSaveMsg(""), 3000);
     onSave?.(data);
+    if (data?.site_pages) {
+      setForm((p) => ({ ...p, pages: titlesFromSitePages(data.site_pages) }));
+    }
     return { ok: true };
   }
 
@@ -433,6 +431,9 @@ export default function InstallationForm({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "AI renk paleti kaydedilemedi.");
       onSave?.(data);
+      if (data?.site_pages) {
+        setForm((p) => ({ ...p, pages: titlesFromSitePages(data.site_pages) }));
+      }
       return { ok: true };
     } catch (err) {
       console.error("[InstallationForm] AI renk paleti otomatik kayıt hatası:", err);
@@ -553,9 +554,6 @@ export default function InstallationForm({
       case 13:
         return null;
       case 14:
-        if (aiQuestions.length === 0) return "Lütfen önce 'Sorularımı Göster' butonuna tıklayın.";
-        if (!aiQuestions.some((item) => item.answer.trim()))
-          return "En az bir soruyu yanıtlamanız gerekmektedir.";
         return null;
       default:
         return null;
@@ -607,45 +605,7 @@ export default function InstallationForm({
   const sectionCls =
     "space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900";
 
-  // ─── AI Soru Üretme ─────────────────────────────────────────────────────────
-
-  async function generateAIQuestions() {
-    setQuestionsLoading(true);
-    setQuestionsError("");
-    try {
-      const res = await fetch("/api/ai/questions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          business_name: form.business_name,
-          sector: form.sector,
-          services,
-          about_text: form.about_text,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Sorular üretilemedi.");
-      if (!Array.isArray(data.questions)) throw new Error("Geçersiz API yanıtı.");
-      const generated = data.questions.map((q) => ({ question: q, answer: "" }));
-      setAiQuestions(generated);
-      // Hemen DB'ye kaydet — sayfa yenilemede de sorular kalsın
-      await fetch(apiUrl, {
-        method: isPublic ? "PUT" : method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ai_questions: generated }),
-      });
-    } catch (err) {
-      setQuestionsError(err.message);
-    } finally {
-      setQuestionsLoading(false);
-    }
-  }
-
-  function updateAnswer(idx, val) {
-    setAiQuestions((prev) =>
-      prev.map((item, i) => (i === idx ? { ...item, answer: val } : item))
-    );
-  }
+  // (AI soru/cevap kaldırıldı)
 
   // ─── Domain ekleme ──────────────────────────────────────────────────────────
 
@@ -992,8 +952,7 @@ export default function InstallationForm({
         return (
           <div className="space-y-4">
             <p className="text-sm text-zinc-500">
-              En az <strong>1 domain adayı</strong> girilmelidir. Türkçe karakterler otomatik
-              dönüştürülür. Eklendikten sonra uygunluğu otomatik kontrol edilir.
+              En az <strong>1 domain adayı</strong> girilmelidir.
             </p>
             <DomainInputRow
               domainInput={domainInput}
@@ -1365,66 +1324,31 @@ export default function InstallationForm({
           </div>
         );
 
-      // ADIM 14: Sizi Tanıyalım (AI Soru-Cevap)
+      // ADIM 14: İstekleriniz
       case 14:
         return (
           <div className="space-y-5">
-            {/* Açıklama */}
             <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/40">
               <p className="text-sm font-medium text-indigo-800 dark:text-indigo-300">
-                Sizi daha iyi tanıyalım
+                Site hakkında istekleriniz
               </p>
               <p className="mt-1 text-xs text-indigo-600 dark:text-indigo-400">
-                Sitenizi daha etkili hazırlayabilmemiz için işletmenize özel 3 soru hazırladık.
-                Cevaplarınız sitenizin içeriğini ve mesajını şekillendirecek.
+                Sitede olmasını istediğiniz her şeyi buraya yazabilirsiniz. Örn: özel bölümler, kampanya alanları,
+                farklı tasarım istekleri, içerik notları, iletişim/WhatsApp yönlendirmeleri vb.
               </p>
             </div>
 
-            {/* Soru üretme butonu */}
-            {aiQuestions.length === 0 && (
-              <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-zinc-200 p-8 text-center dark:border-zinc-700">
-                <div className="text-3xl">🤖</div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  Sektörünüze özel sorular yapay zeka tarafından oluşturulacak.
-                </p>
-                {questionsError && (
-                  <p className="text-xs text-red-500">{questionsError}</p>
-                )}
-                <button
-                  type="button"
-                  disabled={questionsLoading || isCompleted}
-                  onClick={generateAIQuestions}
-                  className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-                >
-                  {questionsLoading ? "Sorular hazırlanıyor…" : "Sorularımı Göster"}
-                </button>
-              </div>
-            )}
-
-            {/* Sorular ve cevap alanları */}
-            {aiQuestions.length > 0 && (
-              <div className="space-y-4">
-                {aiQuestions.map((item, idx) => (
-                  <div key={idx} className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-                    <p className="mb-2 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                      <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-xs font-bold text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
-                        {idx + 1}
-                      </span>
-                      {item.question}
-                    </p>
-                    <textarea
-                      rows={3}
-                      value={item.answer}
-                      onChange={(e) => updateAnswer(idx, e.target.value)}
-                      disabled={isCompleted}
-                      className="mt-1 w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none disabled:bg-zinc-50 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:disabled:bg-zinc-800/50"
-                      placeholder="Cevabınızı buraya yazın…"
-                    />
-                  </div>
-                ))}
-
-              </div>
-            )}
+            <div>
+              <label className={labelCls}>Detaylı istekleriniz (opsiyonel)</label>
+              <textarea
+                rows={8}
+                value={site_requests}
+                onChange={(e) => setSiteRequests(e.target.value)}
+                disabled={isCompleted}
+                className={`${inputCls} resize-y`}
+                placeholder="Tüm isteklerinizi madde madde yazın…"
+              />
+            </div>
           </div>
         );
 
@@ -1737,9 +1661,6 @@ export default function InstallationForm({
               <p className="text-sm font-medium text-indigo-900 dark:text-indigo-200">
                 AI Proje Prompt&apos;u
               </p>
-              <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                Bu formu kullanarak AI editör için site yapım prompt&apos;u oluşturun.
-              </p>
             </div>
             <button
               onClick={handlePrompt}
@@ -2049,10 +1970,10 @@ export default function InstallationForm({
       {/* ALAN ADI TALEPLERI */}
       <section className={sectionCls}>
         <h3 className="font-semibold text-zinc-900 dark:text-zinc-50">İstenen Domain Adayları</h3>
-        <p className="text-xs text-zinc-500">
+        {/* <p className="text-xs text-zinc-500">
           Türkçe karakterler otomatik dönüştürülür. Eklenen her domain uygunluk açısından kontrol
           edilir.
-        </p>
+        </p> */}
         <DomainInputRow
           domainInput={domainInput}
           setDomainInput={setDomainInput}
