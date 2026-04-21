@@ -238,3 +238,32 @@ CREATE TRIGGER trg_set_crm_customers_timestamps
 BEFORE UPDATE ON crm_customers
 FOR EACH ROW
 EXECUTE FUNCTION set_crm_customers_timestamps();
+
+
+-- =========================
+-- AI Logo Generator
+-- =========================
+
+create table if not exists logo_generations (
+  id uuid primary key default gen_random_uuid(),
+  created_by uuid references auth.users(id) on delete cascade,
+
+  title text not null,
+
+  fixed_prompt text not null,
+  user_prompt text not null,
+  full_prompt text not null,
+
+  -- public storage url
+  logo_url text not null,
+  -- bucket içi yol (debug/yeniden kullanım için)
+  storage_path text not null,
+
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_logo_generations_created_by_created_at
+  on logo_generations(created_by, created_at desc);
+
+create index if not exists idx_logo_generations_created_at
+  on logo_generations(created_at desc);

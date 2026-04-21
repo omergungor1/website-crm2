@@ -66,7 +66,7 @@ export default function CrmDashboard() {
         ) : groups.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-zinc-200 py-16 text-center dark:border-zinc-700">
             <p className="text-sm text-zinc-400">
-              Henüz grup yok. "+ Yeni Grup" ile başlayın.
+              Henüz grup yok. &ldquo;+ Yeni Grup&rdquo; ile başlayın.
             </p>
           </div>
         ) : (

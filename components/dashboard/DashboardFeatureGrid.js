@@ -134,6 +134,21 @@ export default function DashboardFeatureGrid({
           →
         </span>
       </Link>
+
+      <Link href="/dashboard/ai-title-generator" className={cardClass}>
+        <div className="flex min-w-0 items-start gap-3 sm:items-center">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-xl dark:bg-indigo-950/40">
+            🧠
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-zinc-900 dark:text-zinc-50">AI Title Generator</p>
+            <p className="text-sm text-zinc-500">Başlık önerileri (yakında)</p>
+          </div>
+        </div>
+        <span className="self-end text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 sm:self-center">
+          →
+        </span>
+      </Link>
     </div>
   );
 }

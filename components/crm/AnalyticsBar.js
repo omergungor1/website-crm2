@@ -12,7 +12,8 @@ export default function AnalyticsBar() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
+    // setState-in-effect lint kuralına takılmamak için
+    // loading'i "date değişti" aksiyonunda yönetiyoruz.
     fetch(`/api/crm/analytics?date=${date}`)
       .then((r) => r.json())
       .then((d) => setStats(d))
@@ -33,7 +34,10 @@ export default function AnalyticsBar() {
         <input
           type="date"
           value={date}
-          onChange={(e) => setDate(e.target.value)}
+          onChange={(e) => {
+            setLoading(true);
+            setDate(e.target.value);
+          }}
           className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-700 outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
         />
       </div>
