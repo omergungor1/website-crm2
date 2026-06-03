@@ -7,12 +7,16 @@ import PagesTab from "@/components/project/PagesTab";
 import InstallationTab from "@/components/project/InstallationTab";
 import UpdatesTab from "@/components/project/UpdatesTab";
 import SettingsTab from "@/components/project/SettingsTab";
+import DbSchemaPlannerTab from "@/components/project/DbSchemaPlannerTab";
+import KeywordExplorerTab from "@/components/project/KeywordExplorerTab";
 
 const TABS = [
   { key: "installation", label: "Kurulum Formu" },
   { key: "updates", label: "Güncellemeler" },
   { key: "domain", label: "Domain" },
   { key: "pages", label: "Sayfalar" },
+  { key: "keyword-explorer", label: "Keyword Explorer" },
+  { key: "db-schema-planner", label: "DB Schema Planner" },
   { key: "blog", label: "Blog" },
   { key: "messages", label: "Mesajlar" },
   { key: "settings", label: "Ayarlar" },
@@ -67,8 +71,8 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-medium ${project.payment_status === "paid"
-              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-              : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400"
+            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+            : "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400"
             }`}
         >
           {project.payment_status === "paid" ? "Ödendi" : "Beklemede"}
@@ -83,8 +87,8 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`shrink-0 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.key
-                  ? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
-                  : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                ? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
+                : "border-transparent text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
                 }`}
             >
               {tab.label}
@@ -117,6 +121,16 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
           />
         )}
         {activeTab === "pages" && <PagesTab sitePages={project.site_pages || []} />}
+        {activeTab === "keyword-explorer" && (
+          <KeywordExplorerTab projectId={project.id} />
+        )}
+        {activeTab === "db-schema-planner" && (
+          <DbSchemaPlannerTab
+            projectId={project.id}
+            projectName={project.name}
+            projectDescription={project.description}
+          />
+        )}
         {activeTab === "blog" && (
           <div className="rounded-xl border border-zinc-200 p-8 text-center dark:border-zinc-700">
             <p className="text-sm text-zinc-500">Blog özelliği yakında eklenecek.</p>

@@ -267,3 +267,139 @@ create index if not exists idx_logo_generations_created_by_created_at
 
 create index if not exists idx_logo_generations_created_at
   on logo_generations(created_at desc);
+
+-- Keyword Explorer Modül Tabloları
+
+create table keyword_groups (
+    id uuid primary key default gen_random_uuid(),
+
+    project_id uuid not null references projects(id) on delete cascade,
+
+    name text not null,
+
+    sort_order integer default 0,
+
+    created_at timestamptz default now()
+);
+
+create table keyword_group_items (
+    id uuid primary key default gen_random_uuid(),
+
+    keyword_group_id uuid not null references keyword_groups(id) on delete cascade,
+
+    value text not null,
+
+    created_at timestamptz default now()
+);
+
+
+create table keyword_candidates (
+    id uuid primary key default gen_random_uuid(),
+
+    project_id uuid not null references projects(id) on delete cascade,
+
+    keyword text not null,
+
+    source text not null,
+
+    score integer default 0,
+
+    search_intent text,
+
+    cluster_name text,
+
+    city text,
+
+    district text,
+
+    selected boolean default false,
+
+    metadata jsonb,
+
+    parent_id uuid references keyword_candidates(id) on delete cascade,
+
+    created_at timestamptz default now()
+);
+
+
+create table project_keywords (
+    id uuid primary key default gen_random_uuid(),
+
+    project_id uuid not null references projects(id) on delete cascade,
+
+    keyword text not null,
+
+    score integer,
+
+    search_intent text,
+
+    cluster_name text,
+
+    status text default 'pending',
+
+    source text,
+
+    created_at timestamptz default now()
+);
+
+create table keyword_clusters (
+    id uuid primary key default gen_random_uuid(),
+
+    project_id uuid not null references projects(id) on delete cascade,
+
+    name text not null,
+
+    description text,
+
+    created_at timestamptz default now()
+);
+
+
+create table keyword_cluster_items (
+    id uuid primary key default gen_random_uuid(),
+
+    cluster_id uuid references keyword_clusters(id) on delete cascade,
+
+    keyword_id uuid references project_keywords(id) on delete cascade
+);
+
+create table seo_settings (
+    project_id uuid primary key references projects(id) on delete cascade,
+
+    weekly_content_goal integer default 5,
+
+    auto_generate_keywords boolean default true,
+
+    auto_cluster_keywords boolean default true,
+
+    auto_detect_intent boolean default true,
+
+    created_at timestamptz default now()
+);
+
+create table keyword_generation_jobs (
+    id uuid primary key default gen_random_uuid(),
+
+    project_id uuid not null references projects(id),
+
+    status text default 'pending',
+
+    source text,
+
+    total_keywords integer default 0,
+
+    processed_keywords integer default 0,
+
+    created_at timestamptz default now(),
+
+    completed_at timestamptz
+);
+
+create index if not exists idx_keyword_groups_project_id on keyword_groups(project_id);
+create index if not exists idx_keyword_group_items_group_id on keyword_group_items(keyword_group_id);
+create index if not exists idx_keyword_candidates_project_id on keyword_candidates(project_id);
+create index if not exists idx_keyword_candidates_parent_id on keyword_candidates(parent_id);
+create index if not exists idx_keyword_candidates_project_score on keyword_candidates(project_id, score desc);
+create index if not exists idx_project_keywords_project_id on project_keywords(project_id);
+create index if not exists idx_keyword_clusters_project_id on keyword_clusters(project_id);
+create index if not exists idx_keyword_generation_jobs_project_id on keyword_generation_jobs(project_id);

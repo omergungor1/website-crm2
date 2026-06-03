@@ -112,7 +112,7 @@ export default function DashboardFeatureGrid({
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-zinc-900 dark:text-zinc-50">Keyword Explorer</p>
-            <p className="text-sm text-zinc-500">Longtail keyword explorer (yakında)</p>
+            <p className="text-sm text-zinc-500">Proje sekmesinde local SEO keyword keşfi</p>
           </div>
         </div>
         <span className="self-end text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 sm:self-center">
