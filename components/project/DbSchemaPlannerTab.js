@@ -98,6 +98,7 @@ export default function DbSchemaPlannerTab({
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [newTableName, setNewTableName] = useState("");
   const [dragging, setDragging] = useState(null);
+  const [panning, setPanning] = useState(null);
   const [editingTableId, setEditingTableId] = useState(null);
   const canvasRef = useRef(null);
   const chatEndRef = useRef(null);
@@ -132,6 +133,28 @@ export default function DbSchemaPlannerTab({
       window.removeEventListener("pointerup", onUp);
     };
   }, [dragging]);
+
+  useEffect(() => {
+    if (!panning) return;
+
+    function onMove(e) {
+      const el = canvasRef.current;
+      if (!el) return;
+      el.scrollLeft = panning.scrollLeft - (e.clientX - panning.startX);
+      el.scrollTop = panning.scrollTop - (e.clientY - panning.startY);
+    }
+
+    function onUp() {
+      setPanning(null);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [panning]);
 
   const getRelations = useCallback(() => {
     const lines = [];
@@ -275,8 +298,25 @@ export default function DbSchemaPlannerTab({
     setShowSettings(false);
   }
 
+  function startCanvasPan(e) {
+    if (e.button !== 0) return;
+    if (e.target.closest("[data-schema-table]")) return;
+    if (e.target.closest("button,input,select,textarea")) return;
+    const el = canvasRef.current;
+    if (!el) return;
+
+    setPanning({
+      startX: e.clientX,
+      startY: e.clientY,
+      scrollLeft: el.scrollLeft,
+      scrollTop: el.scrollTop,
+    });
+    e.preventDefault();
+  }
+
   function startDrag(e, table) {
     if (e.target.closest("button,input,select,textarea")) return;
+    e.stopPropagation();
     setDragging({
       tableId: table.id,
       startX: e.clientX,
@@ -288,21 +328,15 @@ export default function DbSchemaPlannerTab({
 
   const relations = getRelations();
 
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">DB Schema Planner</h2>
-          <p className="text-sm text-zinc-500">
-            Supabase Schema Visualizer benzeri tuval — henüz veritabanına bağlı değil (MVP önizleme).
-          </p>
-        </div>
-        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-          Önizleme
-        </span>
-      </div>
+  const canvasCursor = panning
+    ? "cursor-grabbing"
+    : dragging
+      ? "cursor-grabbing"
+      : "cursor-grab";
 
-      <div className="flex h-[calc(100vh-240px)] min-h-[520px] overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+  return (
+    <div className="w-full">
+      <div className="flex h-[calc(100vh-200px)] min-h-[560px] overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
         {/* Sol: şema tuvali */}
         <div className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950">
@@ -321,14 +355,20 @@ export default function DbSchemaPlannerTab({
                 + Tablo
               </button>
             </form>
-            <span className="text-xs text-zinc-400">Tabloları sürükleyerek konumlandırın</span>
+            <span className="text-xs text-zinc-400">
+              Boş alanda sürükleyerek kaydırın · tabloyu başlıktan taşıyın
+            </span>
+            <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+              Önizleme
+            </span>
           </div>
 
           <div
             ref={canvasRef}
-            className="relative flex-1 overflow-auto bg-[radial-gradient(circle,_#d4d4d8_1px,_transparent_1px)] [background-size:20px_20px] dark:bg-[radial-gradient(circle,_#3f3f46_1px,_transparent_1px)]"
+            onPointerDown={startCanvasPan}
+            className={`relative flex-1 overflow-auto select-none bg-[radial-gradient(circle,_#d4d4d8_1px,_transparent_1px)] [background-size:20px_20px] dark:bg-[radial-gradient(circle,_#3f3f46_1px,_transparent_1px)] ${canvasCursor}`}
           >
-            <svg className="pointer-events-none absolute inset-0 h-full min-h-[600px] w-full min-w-[800px]">
+            <svg className="pointer-events-none absolute inset-0 h-full min-h-[1200px] w-full min-w-[1600px]">
               {relations.map((line) => (
                 <path
                   key={line.id}
@@ -342,11 +382,12 @@ export default function DbSchemaPlannerTab({
               ))}
             </svg>
 
-            <div className="relative min-h-[600px] min-w-[800px]">
+            <div className="relative min-h-[1200px] min-w-[1600px]">
               {tables.map((table) => (
                 <div
                   key={table.id}
-                  className={`absolute select-none rounded-lg border border-zinc-300 bg-white shadow-md dark:border-zinc-600 dark:bg-zinc-800 ${dragging?.tableId === table.id ? "z-20 ring-2 ring-zinc-400" : "z-10"}`}
+                  data-schema-table
+                  className={`absolute cursor-auto select-none rounded-lg border border-zinc-300 bg-white shadow-md dark:border-zinc-600 dark:bg-zinc-800 ${dragging?.tableId === table.id ? "z-20 ring-2 ring-zinc-400" : "z-10"}`}
                   style={{
                     left: table.x,
                     top: table.y,

@@ -40,6 +40,7 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
   const publicFormUrl = publicToken
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/public/form/${publicToken}`
     : null;
+  const isSchemaPlanner = activeTab === "db-schema-planner";
 
   return (
     <div className="space-y-4">
@@ -98,7 +99,7 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
       </div>
 
       {/* Sekme içeriği */}
-      <div className="pb-24">
+      <div className={isSchemaPlanner ? "pb-4" : "pb-24"}>
         {activeTab === "installation" && (
           <InstallationTab
             projectId={project.id}
@@ -125,11 +126,13 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
           <KeywordExplorerTab projectId={project.id} />
         )}
         {activeTab === "db-schema-planner" && (
-          <DbSchemaPlannerTab
-            projectId={project.id}
-            projectName={project.name}
-            projectDescription={project.description}
-          />
+          <div className="relative left-1/2 w-screen max-w-none -translate-x-1/2 px-2 sm:px-3">
+            <DbSchemaPlannerTab
+              projectId={project.id}
+              projectName={project.name}
+              projectDescription={project.description}
+            />
+          </div>
         )}
         {activeTab === "blog" && (
           <div className="rounded-xl border border-zinc-200 p-8 text-center dark:border-zinc-700">
