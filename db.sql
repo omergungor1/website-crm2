@@ -8,15 +8,55 @@ create table projects (
   name text not null,
   description text,
 
+  type text default 'landing_page'
+    check (type in ('landing_page','saas','mobile_app')),
+
   payment_status text default 'pending' check (payment_status in ('pending','paid')),
   status text default 'created'
     check (status in ('created','preparing','coding','completed')),
 
   admin_note text,
 
+  is_archived boolean default false,
+
   created_at timestamp default now(),
   updated_at timestamp default now()
 );
+
+create table project_todos (
+  id uuid primary key default uuid_generate_v4(),
+  project_id uuid not null references projects(id) on delete cascade,
+
+  title text not null,
+  is_completed boolean default false,
+  sort_order integer not null default 0,
+
+  color text check (color is null or color in ('blue','amber','rose')),
+  is_archived boolean default false,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index idx_project_todos_project_id on project_todos(project_id);
+create index idx_project_todos_project_sort on project_todos(project_id, sort_order);
+
+create table project_mvp_features (
+  id uuid primary key default uuid_generate_v4(),
+  project_id uuid not null references projects(id) on delete cascade,
+
+  title text not null,
+  description text default '',
+
+  label text check (label is null or label in ('mvp', 'normal', 'later')),
+  sort_order integer not null default 0,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index idx_project_mvp_features_project_id on project_mvp_features(project_id);
+create index idx_project_mvp_features_project_sort on project_mvp_features(project_id, sort_order);
 
 create table domains (
   id uuid primary key default uuid_generate_v4(),
@@ -246,13 +286,12 @@ EXECUTE FUNCTION set_crm_customers_timestamps();
 
 create table if not exists logo_generations (
   id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
   created_by uuid references auth.users(id) on delete cascade,
 
-  title text not null,
-
-  fixed_prompt text not null,
-  user_prompt text not null,
-  full_prompt text not null,
+  fixed_prompt text default '',
+  user_prompt text default '',
+  full_prompt text default '',
 
   -- public storage url
   logo_url text not null,
@@ -262,11 +301,31 @@ create table if not exists logo_generations (
   created_at timestamptz not null default now()
 );
 
+create index if not exists idx_logo_generations_project_id_created_at
+  on logo_generations(project_id, created_at desc);
+
 create index if not exists idx_logo_generations_created_by_created_at
   on logo_generations(created_by, created_at desc);
 
-create index if not exists idx_logo_generations_created_at
-  on logo_generations(created_at desc);
+-- DB Schema Planner (proje başına bir tasarım)
+create table if not exists project_db_schemas (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null unique references projects(id) on delete cascade,
+
+  project_context text default '',
+
+  -- { tables: [{ id, name, x, y, columns: [{ id, name, type, isPk, fkRef? }] }] }
+  schema_data jsonb not null default '{"tables":[]}'::jsonb,
+
+  -- [{ id, role, content, schemaSnapshot? }] — schemaSnapshot yalnızca user mesajlarında
+  chat_messages jsonb not null default '[]'::jsonb,
+
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_project_db_schemas_project_id
+  on project_db_schemas(project_id);
 
 -- Keyword Explorer Modül Tabloları
 
@@ -395,11 +454,16 @@ create table keyword_generation_jobs (
     completed_at timestamptz
 );
 
-create index if not exists idx_keyword_groups_project_id on keyword_groups(project_id);
-create index if not exists idx_keyword_group_items_group_id on keyword_group_items(keyword_group_id);
-create index if not exists idx_keyword_candidates_project_id on keyword_candidates(project_id);
-create index if not exists idx_keyword_candidates_parent_id on keyword_candidates(parent_id);
-create index if not exists idx_keyword_candidates_project_score on keyword_candidates(project_id, score desc);
-create index if not exists idx_project_keywords_project_id on project_keywords(project_id);
-create index if not exists idx_keyword_clusters_project_id on keyword_clusters(project_id);
-create index if not exists idx_keyword_generation_jobs_project_id on keyword_generation_jobs(project_id);
+-- Mevcut veritabanı için (project_mvp_features):
+-- create table project_mvp_features (
+--   id uuid primary key default uuid_generate_v4(),
+--   project_id uuid not null references projects(id) on delete cascade,
+--   title text not null,
+--   description text default '',
+--   label text check (label is null or label in ('mvp', 'normal', 'later')),
+--   sort_order integer not null default 0,
+--   created_at timestamptz default now(),
+--   updated_at timestamptz default now()
+-- );
+-- create index if not exists idx_project_mvp_features_project_id on project_mvp_features(project_id);
+-- create index if not exists idx_project_mvp_features_project_sort on project_mvp_features(project_id, sort_order);

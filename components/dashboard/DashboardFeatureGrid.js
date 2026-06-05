@@ -89,66 +89,6 @@ export default function DashboardFeatureGrid({
           →
         </span>
       </Link>
-
-      <Link href="/dashboard/copyfast" className={cardClass}>
-        <div className="flex min-w-0 items-start gap-3 sm:items-center">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-xl dark:bg-violet-950/40">
-            ⚡
-          </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-zinc-900 dark:text-zinc-50">CopyFast</p>
-            <p className="text-sm text-zinc-500">Görüntüden site prompt üretimi (yakında)</p>
-          </div>
-        </div>
-        <span className="self-end text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 sm:self-center">
-          →
-        </span>
-      </Link>
-
-      <Link href="/dashboard/keyword-explorer" className={cardClass}>
-        <div className="flex min-w-0 items-start gap-3 sm:items-center">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-xl dark:bg-emerald-950/40">
-            🔍
-          </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-zinc-900 dark:text-zinc-50">Keyword Explorer</p>
-            <p className="text-sm text-zinc-500">Proje sekmesinde local SEO keyword keşfi</p>
-          </div>
-        </div>
-        <span className="self-end text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 sm:self-center">
-          →
-        </span>
-      </Link>
-
-      <Link href="/dashboard/logo-generator" className={cardClass}>
-        <div className="flex min-w-0 items-start gap-3 sm:items-center">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-pink-50 text-xl dark:bg-pink-950/40">
-            ✨
-          </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-zinc-900 dark:text-zinc-50">Logo generator</p>
-            <p className="text-sm text-zinc-500">Logo üretimi (yakında)</p>
-          </div>
-        </div>
-        <span className="self-end text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 sm:self-center">
-          →
-        </span>
-      </Link>
-
-      <Link href="/dashboard/ai-title-generator" className={cardClass}>
-        <div className="flex min-w-0 items-start gap-3 sm:items-center">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-xl dark:bg-indigo-950/40">
-            🧠
-          </div>
-          <div className="min-w-0">
-            <p className="font-semibold text-zinc-900 dark:text-zinc-50">AI Title Generator</p>
-            <p className="text-sm text-zinc-500">Başlık önerileri (yakında)</p>
-          </div>
-        </div>
-        <span className="self-end text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 sm:self-center">
-          →
-        </span>
-      </Link>
     </div>
   );
 }

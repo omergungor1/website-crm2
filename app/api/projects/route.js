@@ -11,6 +11,7 @@ export async function GET() {
   let query = supabase
     .from("projects")
     .select("*")
+    .eq("is_archived", false)
     .order("created_at", { ascending: false });
 
   if (!admin) {
@@ -27,14 +28,22 @@ export async function POST(request) {
   const { user } = await getCurrentUser(supabase);
   if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
-  const { name } = await request.json();
+  const { name, type } = await request.json();
   if (!name?.trim()) {
     return NextResponse.json({ error: "Proje adı gerekli" }, { status: 400 });
   }
 
+  const allowedTypes = ["landing_page", "saas", "mobile_app"];
+  const projectType = allowedTypes.includes(type) ? type : "landing_page";
+
   const { data: project, error: projectError } = await supabase
     .from("projects")
-    .insert({ name: name.trim(), user_id: user.id, update_public_token: nanoid(32) })
+    .insert({
+      name: name.trim(),
+      user_id: user.id,
+      update_public_token: nanoid(32),
+      type: projectType,
+    })
     .select()
     .single();
 

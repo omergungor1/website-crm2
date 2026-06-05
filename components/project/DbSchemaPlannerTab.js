@@ -2,64 +2,20 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { nanoid } from "nanoid";
+import {
+  COLUMN_TYPES,
+  buildDraftFingerprint,
+  cloneSchemaData,
+  defaultWelcomeMessage,
+  emptySchemaData,
+  generateSupabaseSql,
+  normalizeTables,
+} from "@/lib/dbSchemaUtils";
 
 const TABLE_WIDTH = 220;
 const HEADER_H = 40;
 const ROW_H = 28;
 const FOOTER_H = 36;
-const COLUMN_TYPES = ["uuid", "text", "int4", "bool", "timestamptz", "jsonb"];
-
-const INITIAL_TABLES = [
-  {
-    id: "t1",
-    name: "profiles",
-    x: 64,
-    y: 72,
-    columns: [
-      { id: "c1", name: "id", type: "uuid", isPk: true },
-      { id: "c2", name: "email", type: "text", isPk: false },
-      { id: "c3", name: "created_at", type: "timestamptz", isPk: false },
-    ],
-  },
-  {
-    id: "t2",
-    name: "posts",
-    x: 380,
-    y: 180,
-    columns: [
-      { id: "c4", name: "id", type: "uuid", isPk: true },
-      {
-        id: "c5",
-        name: "user_id",
-        type: "uuid",
-        isPk: false,
-        fkRef: { tableId: "t1", column: "id" },
-      },
-      { id: "c6", name: "title", type: "text", isPk: false },
-      { id: "c7", name: "published", type: "bool", isPk: false },
-    ],
-  },
-];
-
-const INITIAL_CHAT = [
-  {
-    id: "m1",
-    role: "assistant",
-    content:
-      "Merhaba. Bu alan şema planlama asistanı için ayrıldı. Tabloları soldaki tuvalde düzenleyebilir, ilişkileri görsel olarak takip edebilirsiniz.",
-  },
-  {
-    id: "m2",
-    role: "user",
-    content: "profiles ve posts arasında user_id foreign key ilişkisi doğru mu?",
-  },
-  {
-    id: "m3",
-    role: "assistant",
-    content:
-      "Evet — posts.user_id → profiles.id ilişkisi tuvalde çizgi ile gösteriliyor. MVP aşamasında yanıtlar örnek veridir; veritabanı bağlantısı henüz yok.",
-  },
-];
 
 function tableHeight(table) {
   return HEADER_H + table.columns.length * ROW_H + FOOTER_H;
@@ -68,16 +24,40 @@ function tableHeight(table) {
 function SettingsIcon() {
   return (
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-      />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+    </svg>
+  );
+}
+
+function BackIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z" />
+    </svg>
+  );
+}
+
+function RevertIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12.5 8c-2.65 0-5.05 1.54-6.17 3.95L3.5 10.5V16h5.5l-1.97-1.97C7.86 12.47 10.05 11 12.5 11c2.76 0 5.21 1.79 6.07 4.36l1.46-.47C18.88 11.52 15.93 8 12.5 8z" />
+    </svg>
+  );
+}
+
+function LinkIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" />
+    </svg>
+  );
+}
+
+function CopyIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
     </svg>
   );
 }
@@ -86,30 +66,105 @@ export default function DbSchemaPlannerTab({
   projectId,
   projectName,
   projectDescription = "",
+  fullscreen = false,
+  onBack,
 }) {
-  const [tables, setTables] = useState(INITIAL_TABLES);
-  const [chatMessages, setChatMessages] = useState(INITIAL_CHAT);
+  const [tables, setTables] = useState([]);
+  const [chatMessages, setChatMessages] = useState([defaultWelcomeMessage()]);
+  const [projectContext, setProjectContext] = useState(projectDescription || "");
+  const [savedFingerprint, setSavedFingerprint] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [projectDetails, setProjectDetails] = useState(
-    projectDescription ||
-      `${projectName} projesi için veritabanı şema taslağı. Hedef: müşteri portalı ve içerik yönetimi.`
-  );
-  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [showSqlModal, setShowSqlModal] = useState(false);
+  const [sqlCopied, setSqlCopied] = useState(false);
   const [newTableName, setNewTableName] = useState("");
   const [dragging, setDragging] = useState(null);
   const [panning, setPanning] = useState(null);
+  const [linking, setLinking] = useState(null);
+  const [linkPointer, setLinkPointer] = useState(null);
   const [editingTableId, setEditingTableId] = useState(null);
+  const [selectedRelation, setSelectedRelation] = useState(null);
   const canvasRef = useRef(null);
   const chatEndRef = useRef(null);
 
+  const isDirty =
+    savedFingerprint !==
+    buildDraftFingerprint({
+      schemaData: { tables },
+      chatMessages,
+      projectContext,
+    });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/projects/${projectId}/db-schema`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Yüklenemedi");
+        if (cancelled) return;
+
+        const loadedTables = normalizeTables(data.schema_data?.tables || []);
+        const loadedMessages = data.chat_messages?.length
+          ? data.chat_messages
+          : [defaultWelcomeMessage()];
+        const loadedContext =
+          data.project_context ||
+          projectDescription ||
+          `${projectName} projesi için veritabanı şema taslağı.`;
+
+        setTables(loadedTables);
+        setChatMessages(loadedMessages);
+        setProjectContext(loadedContext);
+        setSavedFingerprint(
+          buildDraftFingerprint({
+            schemaData: { tables: loadedTables },
+            chatMessages: loadedMessages,
+            projectContext: loadedContext,
+          })
+        );
+      } catch {
+        if (!cancelled) {
+          setTables([]);
+          setChatMessages([defaultWelcomeMessage()]);
+          setProjectContext(projectDescription || "");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, projectName, projectDescription]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  }, [chatMessages, chatLoading]);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (!selectedRelation) return;
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+      e.preventDefault();
+      clearForeignKey(selectedRelation.sourceTableId, selectedRelation.sourceColumnId);
+      setSelectedRelation(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedRelation]);
 
   useEffect(() => {
     if (!dragging) return;
-
     function onMove(e) {
       const dx = e.clientX - dragging.startX;
       const dy = e.clientY - dragging.startY;
@@ -121,11 +176,9 @@ export default function DbSchemaPlannerTab({
         )
       );
     }
-
     function onUp() {
       setDragging(null);
     }
-
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     return () => {
@@ -136,18 +189,15 @@ export default function DbSchemaPlannerTab({
 
   useEffect(() => {
     if (!panning) return;
-
     function onMove(e) {
       const el = canvasRef.current;
       if (!el) return;
       el.scrollLeft = panning.scrollLeft - (e.clientX - panning.startX);
       el.scrollTop = panning.scrollTop - (e.clientY - panning.startY);
     }
-
     function onUp() {
       setPanning(null);
     }
-
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     return () => {
@@ -155,6 +205,40 @@ export default function DbSchemaPlannerTab({
       window.removeEventListener("pointerup", onUp);
     };
   }, [panning]);
+
+  useEffect(() => {
+    if (!linking) return;
+    function onMove(e) {
+      const el = canvasRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setLinkPointer({
+        x: e.clientX - rect.left + el.scrollLeft,
+        y: e.clientY - rect.top + el.scrollTop,
+      });
+    }
+    function onUp() {
+      setLinking(null);
+      setLinkPointer(null);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [linking]);
+
+  const getColumnAnchor = useCallback((tableId, columnId) => {
+    const table = tables.find((t) => t.id === tableId);
+    if (!table) return null;
+    const colIndex = table.columns.findIndex((c) => c.id === columnId);
+    if (colIndex < 0) return null;
+    return {
+      x: table.x + TABLE_WIDTH,
+      y: table.y + HEADER_H + colIndex * ROW_H + ROW_H / 2,
+    };
+  }, [tables]);
 
   const getRelations = useCallback(() => {
     const lines = [];
@@ -164,6 +248,7 @@ export default function DbSchemaPlannerTab({
         const target = tables.find((t) => t.id === col.fkRef.tableId);
         if (!target) return;
         const targetColIndex = target.columns.findIndex((c) => c.name === col.fkRef.column);
+        const targetColumn = target.columns[targetColIndex >= 0 ? targetColIndex : 0];
         const srcY = source.y + HEADER_H + colIndex * ROW_H + ROW_H / 2;
         const tgtY =
           target.y + HEADER_H + (targetColIndex >= 0 ? targetColIndex : 0) * ROW_H + ROW_H / 2;
@@ -172,6 +257,10 @@ export default function DbSchemaPlannerTab({
         const midX = (srcX + tgtX) / 2;
         lines.push({
           id: `${source.id}-${col.id}`,
+          sourceTableId: source.id,
+          sourceColumnId: col.id,
+          targetTableId: target.id,
+          targetColumnId: targetColumn?.id,
           d: `M ${srcX} ${srcY} C ${midX} ${srcY}, ${midX} ${tgtY}, ${tgtX} ${tgtY}`,
         });
       });
@@ -182,8 +271,7 @@ export default function DbSchemaPlannerTab({
   function handleAddTable(e) {
     e.preventDefault();
     const name = newTableName.trim().replace(/\s+/g, "_").toLowerCase();
-    if (!name) return;
-    if (tables.some((t) => t.name === name)) return;
+    if (!name || tables.some((t) => t.name === name)) return;
     setTables((prev) => [
       ...prev,
       {
@@ -263,7 +351,7 @@ export default function DbSchemaPlannerTab({
               ...t,
               columns: t.columns.map((c) =>
                 c.id === columnId
-                  ? { ...c, isPk: !c.isPk }
+                  ? { ...c, isPk: !c.isPk, fkRef: !c.isPk ? undefined : c.fkRef }
                   : c.isPk
                     ? { ...c, isPk: false }
                     : c
@@ -274,37 +362,164 @@ export default function DbSchemaPlannerTab({
     );
   }
 
-  function handleChatSubmit(e) {
+  function clearForeignKey(sourceTableId, sourceColumnId) {
+    setSelectedRelation((prev) =>
+      prev?.sourceTableId === sourceTableId && prev?.sourceColumnId === sourceColumnId
+        ? null
+        : prev
+    );
+    setTables((prev) =>
+      prev.map((t) =>
+        t.id === sourceTableId
+          ? {
+              ...t,
+              columns: t.columns.map((c) =>
+                c.id === sourceColumnId ? { ...c, fkRef: undefined } : c
+              ),
+            }
+          : t
+      )
+    );
+  }
+
+  function startLink(e, tableId, columnId) {
+    e.stopPropagation();
+    e.preventDefault();
+    const anchor = getColumnAnchor(tableId, columnId);
+    setLinking({ fromTableId: tableId, fromColumnId: columnId });
+    setLinkPointer(anchor);
+  }
+
+  function completeLink(targetTableId, targetColumnId) {
+    if (!linking) return;
+    if (linking.fromTableId === targetTableId) return;
+    const targetTable = tables.find((t) => t.id === targetTableId);
+    const targetCol = targetTable?.columns.find((c) => c.id === targetColumnId);
+    if (!targetCol) return;
+
+    setTables((prev) =>
+      prev.map((t) =>
+        t.id === linking.fromTableId
+          ? {
+              ...t,
+              columns: t.columns.map((c) =>
+                c.id === linking.fromColumnId
+                  ? { ...c, fkRef: { tableId: targetTableId, column: targetCol.name }, isPk: false }
+                  : c
+              ),
+            }
+          : t
+      )
+    );
+    setLinking(null);
+    setLinkPointer(null);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      const res = await fetch(`/api/projects/${projectId}/db-schema`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_context: projectContext,
+          schema_data: { tables: normalizeTables(tables) },
+          chat_messages: chatMessages,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Kaydedilemedi");
+
+      const fp = buildDraftFingerprint({
+        schemaData: data.schema_data,
+        chatMessages: data.chat_messages,
+        projectContext: data.project_context,
+      });
+      setSavedFingerprint(fp);
+      setSaveMsg("Kaydedildi");
+      setTimeout(() => setSaveMsg(""), 2500);
+    } catch (e) {
+      setSaveMsg(e.message || "Hata");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleChatSubmit(e) {
     e.preventDefault();
     const text = chatInput.trim();
-    if (!text) return;
-    setChatMessages((prev) => [
-      ...prev,
-      { id: nanoid(8), role: "user", content: text },
-      {
-        id: nanoid(8),
-        role: "assistant",
-        content:
-          "MVP modu: mesajınız kaydedildi ancak AI yanıtı henüz bağlı değil. Şema değişikliklerini soldaki tuvalden manuel yönetebilirsiniz.",
-      },
-    ]);
+    if (!text || chatLoading) return;
+
+    const schemaSnapshot = cloneSchemaData({ tables: normalizeTables(tables) });
+    const userMsg = {
+      id: nanoid(8),
+      role: "user",
+      content: text,
+      schemaSnapshot,
+    };
+
+    setChatMessages((prev) => [...prev, userMsg]);
     setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/db-schema/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          project_context: projectContext,
+          schema_data: { tables: normalizeTables(tables) },
+          recent_messages: [...chatMessages, userMsg].slice(-10),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "AI yanıt veremedi");
+
+      setTables(normalizeTables(data.schema_data?.tables || tables));
+      setChatMessages((prev) => [
+        ...prev,
+        { id: nanoid(8), role: "assistant", content: data.message },
+      ]);
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: nanoid(8),
+          role: "assistant",
+          content: "Hata: " + (err.message || "Bağlantı sorunu"),
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  function revertToMessage(messageId) {
+    const idx = chatMessages.findIndex((m) => m.id === messageId);
+    if (idx < 0) return;
+    const msg = chatMessages[idx];
+    if (!msg.schemaSnapshot) return;
+    if (!confirm("Bu mesajdan sonraki şema değişiklikleri geri alınacak. Devam?")) return;
+    setTables(normalizeTables(msg.schemaSnapshot.tables || []));
+    setChatMessages((prev) => prev.slice(0, idx));
   }
 
   function handleSaveSettings(e) {
     e.preventDefault();
-    setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 2500);
     setShowSettings(false);
   }
 
   function startCanvasPan(e) {
+    if (linking) return;
     if (e.button !== 0) return;
     if (e.target.closest("[data-schema-table]")) return;
+    if (e.target.closest("[data-relation-line]")) return;
     if (e.target.closest("button,input,select,textarea")) return;
+    setSelectedRelation(null);
     const el = canvasRef.current;
     if (!el) return;
-
     setPanning({
       startX: e.clientX,
       startY: e.clientY,
@@ -315,6 +530,7 @@ export default function DbSchemaPlannerTab({
   }
 
   function startDrag(e, table) {
+    if (linking) return;
     if (e.target.closest("button,input,select,textarea")) return;
     e.stopPropagation();
     setDragging({
@@ -326,20 +542,71 @@ export default function DbSchemaPlannerTab({
     });
   }
 
-  const relations = getRelations();
+  async function copySql() {
+    const sql = generateSupabaseSql(tables);
+    await navigator.clipboard.writeText(sql);
+    setSqlCopied(true);
+    setTimeout(() => setSqlCopied(false), 2000);
+  }
 
-  const canvasCursor = panning
-    ? "cursor-grabbing"
-    : dragging
+  const relations = getRelations();
+  const sqlText = generateSupabaseSql(tables);
+  const linkFromAnchor = linking
+    ? getColumnAnchor(linking.fromTableId, linking.fromColumnId)
+    : null;
+
+  function isRelationColumnHighlighted(tableId, columnId) {
+    if (!selectedRelation) return false;
+    return (
+      (selectedRelation.sourceTableId === tableId &&
+        selectedRelation.sourceColumnId === columnId) ||
+      (selectedRelation.targetTableId === tableId && selectedRelation.targetColumnId === columnId)
+    );
+  }
+
+  const canvasCursor = linking
+    ? "cursor-crosshair"
+    : panning
       ? "cursor-grabbing"
-      : "cursor-grab";
+      : dragging
+        ? "cursor-grabbing"
+        : "cursor-grab";
+
+  if (loading) {
+    return (
+      <div className={`flex items-center justify-center ${fullscreen ? "h-screen" : "h-64"}`}>
+        <p className="text-sm text-zinc-400">Şema yükleniyor…</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full">
-      <div className="flex h-[calc(100vh-200px)] min-h-[560px] overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-        {/* Sol: şema tuvali */}
+    <div className={`w-full ${fullscreen ? "h-screen" : ""}`}>
+      <div
+        className={`flex overflow-hidden border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900 ${
+          fullscreen ? "h-full border-0" : "h-[calc(100vh-200px)] min-h-[560px] rounded-lg border"
+        }`}
+      >
         <div className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-950">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                title="Projeye dön"
+                aria-label="Projeye dön"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+              >
+                <BackIcon className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowSqlModal(true)}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+            >
+              SQL
+            </button>
             <form onSubmit={handleAddTable} className="flex items-center gap-2">
               <input
                 type="text"
@@ -355,12 +622,38 @@ export default function DbSchemaPlannerTab({
                 + Tablo
               </button>
             </form>
-            <span className="text-xs text-zinc-400">
-              Boş alanda sürükleyerek kaydırın · tabloyu başlıktan taşıyın
+            <span className="hidden text-xs text-zinc-400 sm:inline">
+              İlişki: link ikonundan sürükle · çizgiye tıkla seç · Del ile sil
             </span>
-            <span className="ml-auto rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-              Önizleme
-            </span>
+            {selectedRelation && (
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                İlişki seçili — Del
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {isDirty ? (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  Kaydedilmedi
+                </span>
+              ) : (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  Kayıtlı
+                </span>
+              )}
+              {saveMsg && (
+                <span className={`text-xs ${saveMsg === "Kaydedildi" ? "text-emerald-600" : "text-red-600"}`}>
+                  {saveMsg}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !isDirty}
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? "Kaydediliyor…" : "Kaydet"}
+              </button>
+            </div>
           </div>
 
           <div
@@ -368,19 +661,18 @@ export default function DbSchemaPlannerTab({
             onPointerDown={startCanvasPan}
             className={`relative flex-1 overflow-auto select-none bg-[radial-gradient(circle,_#d4d4d8_1px,_transparent_1px)] [background-size:20px_20px] dark:bg-[radial-gradient(circle,_#3f3f46_1px,_transparent_1px)] ${canvasCursor}`}
           >
-            <svg className="pointer-events-none absolute inset-0 h-full min-h-[1200px] w-full min-w-[1600px]">
-              {relations.map((line) => (
+            {linkFromAnchor && linkPointer && (
+              <svg className="pointer-events-none absolute inset-0 z-[5] h-full min-h-[1200px] w-full min-w-[1600px]">
                 <path
-                  key={line.id}
-                  d={line.d}
+                  d={`M ${linkFromAnchor.x} ${linkFromAnchor.y} L ${linkPointer.x} ${linkPointer.y}`}
                   fill="none"
                   stroke="currentColor"
-                  className="text-emerald-500/70 dark:text-emerald-400/60"
-                  strokeWidth="1.5"
-                  strokeDasharray="4 3"
+                  className="text-indigo-500"
+                  strokeWidth="2"
+                  strokeDasharray="6 4"
                 />
-              ))}
-            </svg>
+              </svg>
+            )}
 
             <div className="relative min-h-[1200px] min-w-[1600px]">
               {tables.map((table) => (
@@ -417,7 +709,6 @@ export default function DbSchemaPlannerTab({
                           e.stopPropagation();
                           setEditingTableId(table.id);
                         }}
-                        title="Tablo adını düzenle"
                       >
                         {table.name}
                       </button>
@@ -428,8 +719,7 @@ export default function DbSchemaPlannerTab({
                         e.stopPropagation();
                         handleDeleteTable(table.id);
                       }}
-                      className="shrink-0 rounded p-0.5 text-zinc-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950"
-                      title="Tabloyu sil"
+                      className="shrink-0 rounded p-0.5 text-zinc-400 hover:bg-red-100 hover:text-red-600"
                     >
                       ×
                     </button>
@@ -439,14 +729,38 @@ export default function DbSchemaPlannerTab({
                     {table.columns.map((col) => (
                       <li
                         key={col.id}
-                        className="flex items-center gap-1 px-2 py-1 text-[11px]"
+                        className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors ${
+                          isRelationColumnHighlighted(table.id, col.id)
+                            ? "bg-indigo-100 ring-2 ring-inset ring-indigo-400 dark:bg-indigo-950/70 dark:ring-indigo-500"
+                            : linking
+                              ? "ring-1 ring-inset ring-indigo-200 dark:ring-indigo-800"
+                              : ""
+                        }`}
                         onClick={(e) => e.stopPropagation()}
+                        onPointerUp={(e) => {
+                          if (linking && linking.fromTableId !== table.id) {
+                            e.stopPropagation();
+                            completeLink(table.id, col.id);
+                          }
+                        }}
                       >
                         <button
                           type="button"
-                          onClick={() => handleTogglePk(table.id, col.id)}
+                          onClick={() => {
+                            if (col.fkRef) {
+                              clearForeignKey(table.id, col.id);
+                            } else {
+                              handleTogglePk(table.id, col.id);
+                            }
+                          }}
                           className={`shrink-0 rounded px-0.5 font-mono text-[9px] font-bold ${col.isPk ? "text-amber-600" : col.fkRef ? "text-emerald-600" : "text-zinc-300"}`}
-                          title={col.isPk ? "Primary key" : col.fkRef ? "Foreign key" : "PK yap"}
+                          title={
+                            col.fkRef
+                              ? "Foreign key — tıkla sil"
+                              : col.isPk
+                                ? "Primary key"
+                                : "PK yap"
+                          }
                         >
                           {col.isPk ? "PK" : col.fkRef ? "FK" : "··"}
                         </button>
@@ -457,7 +771,7 @@ export default function DbSchemaPlannerTab({
                               name: e.target.value.replace(/\s+/g, "_"),
                             })
                           }
-                          className="min-w-0 flex-1 rounded border-0 bg-transparent font-mono text-zinc-800 focus:bg-zinc-50 focus:ring-1 focus:ring-zinc-300 dark:text-zinc-200 dark:focus:bg-zinc-900"
+                          className="min-w-0 flex-1 rounded border-0 bg-transparent font-mono text-zinc-800 focus:bg-zinc-50 focus:ring-1 focus:ring-zinc-300 dark:text-zinc-200"
                         />
                         <select
                           value={col.type}
@@ -472,11 +786,20 @@ export default function DbSchemaPlannerTab({
                             </option>
                           ))}
                         </select>
+                        {!col.isPk && (
+                          <button
+                            type="button"
+                            onPointerDown={(e) => startLink(e, table.id, col.id)}
+                            className={`shrink-0 rounded p-0.5 ${linking?.fromColumnId === col.id ? "text-indigo-600" : "text-zinc-400 hover:text-indigo-600"}`}
+                            title="İlişki kur — sürükle"
+                          >
+                            <LinkIcon className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleDeleteColumn(table.id, col.id)}
                           className="shrink-0 text-zinc-300 hover:text-red-500"
-                          title="Alanı sil"
                         >
                           ×
                         </button>
@@ -490,26 +813,60 @@ export default function DbSchemaPlannerTab({
                       e.stopPropagation();
                       handleAddColumn(table.id);
                     }}
-                    className="w-full rounded-b-lg border-t border-zinc-100 py-2 text-center text-[10px] text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-700/50"
+                    className="w-full rounded-b-lg border-t border-zinc-100 py-2 text-center text-[10px] text-zinc-500 hover:bg-zinc-50 dark:border-zinc-700"
                   >
                     + Alan ekle
                   </button>
                 </div>
               ))}
             </div>
+
+            <svg className="pointer-events-none absolute inset-0 z-[15] h-full min-h-[1200px] w-full min-w-[1600px]">
+              {relations.map((line) => {
+                const isSelected = selectedRelation?.id === line.id;
+                return (
+                  <g
+                    key={line.id}
+                    data-relation-line
+                    className="pointer-events-auto cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedRelation(isSelected ? null : line);
+                    }}
+                  >
+                    <path
+                      d={line.d}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth="16"
+                    />
+                    <path
+                      d={line.d}
+                      fill="none"
+                      stroke="currentColor"
+                      className={
+                        isSelected
+                          ? "text-indigo-500 dark:text-indigo-400"
+                          : "text-emerald-500/70 hover:text-emerald-600 dark:text-emerald-400/60 dark:hover:text-emerald-300"
+                      }
+                      strokeWidth={isSelected ? 3 : 2}
+                      strokeDasharray={isSelected ? "none" : "4 3"}
+                    />
+                  </g>
+                );
+              })}
+            </svg>
           </div>
         </div>
 
-        {/* Sağ: AI paneli */}
         <aside className="flex w-[min(100%,380px)] shrink-0 flex-col border-l border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950">
           <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-700">
             <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Şema Asistanı</span>
             <button
               type="button"
               onClick={() => setShowSettings(true)}
-              className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-200 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-              title="Ayarlar"
-              aria-label="Ayarlar"
+              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800"
+              title="Proje bağlamı"
             >
               <SettingsIcon />
             </button>
@@ -519,31 +876,49 @@ export default function DbSchemaPlannerTab({
             {chatMessages.map((msg) => (
               <div
                 key={msg.id}
-                className={`rounded-xl px-3 py-2 text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "ml-4 bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "mr-2 border border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-                }`}
+                className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide opacity-50">
-                  {msg.role === "user" ? "Siz" : "Asistan"}
-                </p>
-                {msg.content}
+                {msg.role === "user" && msg.schemaSnapshot && (
+                  <button
+                    type="button"
+                    onClick={() => revertToMessage(msg.id)}
+                    title="Bu mesaja geri dön"
+                    aria-label="Bu mesaja geri dön"
+                    className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center self-start rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:hover:text-zinc-200"
+                  >
+                    <RevertIcon className="h-4 w-4" />
+                  </button>
+                )}
+                <div
+                  className={`max-w-[90%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      : "border border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                  }`}
+                >
+                  <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide opacity-50">
+                    {msg.role === "user" ? "Siz" : "Asistan"}
+                  </p>
+                  {msg.content}
+                </div>
               </div>
             ))}
+            {chatLoading && (
+              <div className="mr-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900">
+                Düşünüyor…
+              </div>
+            )}
             <div ref={chatEndRef} />
           </div>
 
-          <form
-            onSubmit={handleChatSubmit}
-            className="border-t border-zinc-200 p-3 dark:border-zinc-700"
-          >
+          <form onSubmit={handleChatSubmit} className="border-t border-zinc-200 p-3 dark:border-zinc-700">
             <textarea
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="Şema hakkında soru yazın… (MVP: yerel önizleme)"
+              placeholder="Örn: Bu bir e-ticaret projesi, users ve products tabloları oluştur…"
               rows={3}
-              className="mb-2 w-full resize-none rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+              disabled={chatLoading}
+              className="mb-2 w-full resize-none rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none disabled:opacity-60 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -553,81 +928,62 @@ export default function DbSchemaPlannerTab({
             />
             <button
               type="submit"
-              disabled={!chatInput.trim()}
+              disabled={!chatInput.trim() || chatLoading}
               className="w-full rounded-xl bg-zinc-900 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
             >
-              Gönder
+              {chatLoading ? "Gönderiliyor…" : "Gönder"}
             </button>
           </form>
         </aside>
       </div>
 
-      {/* Ayarlar modalı */}
-      {showSettings && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={() => setShowSettings(false)}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                DB Schema Planner Ayarları
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowSettings(false)}
-                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="mb-3 text-xs text-zinc-500">
-              Proje: <span className="font-medium text-zinc-700 dark:text-zinc-300">{projectName}</span>
-              <span className="text-zinc-400"> · ID: {projectId}</span>
-            </p>
-
-            <form onSubmit={handleSaveSettings} className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                  Proje detayları
-                </label>
-                <textarea
-                  value={projectDetails}
-                  onChange={(e) => setProjectDetails(e.target.value)}
-                  rows={8}
-                  placeholder="İş kuralları, hedef tablolar, entegrasyon notları…"
-                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                />
-                <p className="mt-1 text-xs text-zinc-400">
-                  AI asistanı için bağlam metni. MVP aşamasında yalnızca yerelde tutulur.
-                </p>
-              </div>
-
-              {settingsSaved && (
-                <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
-                  Kaydedildi (önizleme — sunucuya gönderilmedi).
-                </p>
-              )}
-
-              <div className="flex gap-2">
+      {showSqlModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-zinc-900">
+            <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Supabase SQL</h3>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowSettings(false)}
-                  className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                  onClick={copySql}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-200"
                 >
-                  İptal
+                  <CopyIcon className="h-4 w-4" />
+                  {sqlCopied ? "Kopyalandı" : "Kopyala"}
                 </button>
                 <button
-                  type="submit"
-                  className="flex-1 rounded-xl bg-zinc-900 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+                  type="button"
+                  onClick={() => setShowSqlModal(false)}
+                  className="rounded-lg px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
-                  Kaydet
+                  Kapat
                 </button>
               </div>
+            </div>
+            <pre className="flex-1 overflow-auto bg-zinc-950 p-4 text-xs leading-relaxed text-emerald-400">
+              {sqlText}
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {showSettings && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowSettings(false)}>
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">Proje bağlamı</h3>
+            <p className="mb-3 text-xs text-zinc-500">
+              AI asistanı bu metni okur. Kalıcı kayıt için üstteki <strong>Kaydet</strong> butonunu kullanın.
+            </p>
+            <form onSubmit={handleSaveSettings} className="space-y-4">
+              <textarea
+                value={projectContext}
+                onChange={(e) => setProjectContext(e.target.value)}
+                rows={8}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              />
+              <button type="submit" className="w-full rounded-xl bg-zinc-900 py-2.5 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900">
+                Tamam
+              </button>
             </form>
           </div>
         </div>

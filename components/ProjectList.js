@@ -8,6 +8,18 @@ const STATUS_COLOR = {
   paid: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
 };
 
+const TYPE_LABEL = {
+  landing_page: "Landing Page",
+  saas: "SaaS",
+  mobile_app: "Mobile App",
+};
+
+const TYPE_COLOR = {
+  landing_page: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300",
+  saas: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300",
+  mobile_app: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
+};
+
 export default function ProjectList({ initialProjects, isAdmin }) {
   const projects = initialProjects;
 
@@ -31,11 +43,18 @@ export default function ProjectList({ initialProjects, isAdmin }) {
             <h3 className="font-semibold text-zinc-900 group-hover:text-zinc-600 dark:text-zinc-50 dark:group-hover:text-zinc-300">
               {project.name}
             </h3>
-            <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[project.payment_status] || STATUS_COLOR.pending}`}
-            >
-              {STATUS_LABEL[project.payment_status] || project.payment_status}
-            </span>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${TYPE_COLOR[project.type] || TYPE_COLOR.landing_page}`}
+              >
+                {TYPE_LABEL[project.type] || project.type || "Landing Page"}
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[project.payment_status] || STATUS_COLOR.pending}`}
+              >
+                {STATUS_LABEL[project.payment_status] || project.payment_status}
+              </span>
+            </div>
           </div>
           {project.description && (
             <p className="mt-1 text-sm text-zinc-500 line-clamp-2">{project.description}</p>

@@ -1,69 +1,40 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/isAdmin";
+import {
+  FIXED_LOGO_PROMPT,
+  isValidLogoPrompt,
+  safeLogoSlug,
+} from "@/lib/logoUtils";
 
-const FIXED_PROMPT =
-  "Bana kare bir logo tasarla. Logo içinde metin olmayacak. Sektör ile uyumlu bir renk paleti seçmelisin";
-
-function safeSlug(input) {
-  const s = String(input || "")
-    .trim()
-    .toLowerCase()
-    // türkçe karakterleri ascii'ye yaklaştır
-    .replace(/ı/g, "i")
-    .replace(/İ/g, "i")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    // diğer aksanları düşür
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  return (
-    s
-      .replace(/[^a-z0-9\s-_.]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^[-_.]+|[-_.]+$/g, "")
-      .slice(0, 80) || "logo"
-  );
-}
-
-function isValidPrompt(p) {
-  const s = String(p || "").trim();
-  return s.length >= 100;
-}
-
-async function uploadPngBase64ToPublicBucket({ supabase, bucket, base64, path }) {
-  const buffer = Buffer.from(base64, "base64");
-  const { data, error } = await supabase.storage.from(bucket).upload(path, buffer, {
-    contentType: "image/png",
-    upsert: true,
-  });
-  if (error) throw new Error(error.message);
-
-  const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-  if (!urlData?.publicUrl) throw new Error("Public URL alınamadı");
-
-  return { publicUrl: urlData.publicUrl, storagePath: data.path };
-}
+import {
+  getLogoProjectAccess,
+  LOGO_BUCKET,
+  uploadPngBase64ToPublicBucket,
+} from "@/lib/logoGenerationsServer";
 
 export async function GET(request) {
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth?.user;
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, admin } = await getCurrentUser(supabase);
+  if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);
+  const projectId = String(searchParams.get("project_id") || "").trim();
+  if (!projectId) {
+    return NextResponse.json({ error: "project_id gerekli" }, { status: 400 });
+  }
+
+  const { allowed } = await getLogoProjectAccess(supabase, user, admin, projectId);
+  if (!allowed) return NextResponse.json({ error: "Erişim yok" }, { status: 403 });
+
   const offset = Math.max(0, Number(searchParams.get("offset") || "0") || 0);
-  const limit = 9;
+  const limit = 12;
 
   const { data, error } = await supabase
     .from("logo_generations")
-    .select("id,title,logo_url,created_at")
-    .eq("created_by", user.id)
+    .select("id, logo_url, created_at")
+    .eq("project_id", projectId)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -76,9 +47,8 @@ export async function GET(request) {
 
 export async function POST(request) {
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth?.user;
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, admin } = await getCurrentUser(supabase);
+  if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
   let body;
   try {
@@ -87,18 +57,25 @@ export async function POST(request) {
     return NextResponse.json({ error: "Geçersiz JSON" }, { status: 400 });
   }
 
-  const title = String(body?.title || "").trim();
+  const projectId = String(body?.project_id || "").trim();
   const userPrompt = String(body?.prompt || "").trim();
 
-  if (!title) return NextResponse.json({ error: "Title gerekli" }, { status: 400 });
-  if (!isValidPrompt(userPrompt)) {
+  if (!projectId) {
+    return NextResponse.json({ error: "project_id gerekli" }, { status: 400 });
+  }
+  if (!isValidLogoPrompt(userPrompt)) {
     return NextResponse.json(
       { error: "Prompt en az 100 karakter olmalıdır" },
       { status: 400 }
     );
   }
 
-  const fullPrompt = `${FIXED_PROMPT}\n\nKullanıcı promptu:\n${userPrompt}`;
+  const { project, allowed } = await getLogoProjectAccess(supabase, user, admin, projectId);
+  if (!allowed || !project) {
+    return NextResponse.json({ error: "Erişim yok" }, { status: 403 });
+  }
+
+  const fullPrompt = `${FIXED_LOGO_PROMPT}\n\nKullanıcı promptu:\n${userPrompt}`;
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   let imageBase64;
@@ -120,8 +97,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Görsel üretilemedi" }, { status: 500 });
   }
 
-  const bucket = "crm-logos"; //ai-logos
-  const filename = `${safeSlug(title)}-${Date.now()}.png`;
+  const bucket = LOGO_BUCKET;
+  const filename = `${safeLogoSlug(project.name)}-${Date.now()}.png`;
   const path = `${user.id}/${filename}`;
 
   let uploaded;
@@ -140,9 +117,9 @@ export async function POST(request) {
   }
 
   const row = {
+    project_id: projectId,
     created_by: user.id,
-    title,
-    fixed_prompt: FIXED_PROMPT,
+    fixed_prompt: FIXED_LOGO_PROMPT,
     user_prompt: userPrompt,
     full_prompt: fullPrompt,
     logo_url: uploaded.publicUrl,
@@ -152,7 +129,7 @@ export async function POST(request) {
   const { data, error } = await supabase
     .from("logo_generations")
     .insert(row)
-    .select("id,title,logo_url,created_at")
+    .select("id, logo_url, created_at")
     .single();
 
   if (error) {
@@ -161,4 +138,3 @@ export async function POST(request) {
 
   return NextResponse.json({ item: data });
 }
-

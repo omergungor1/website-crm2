@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/isAdmin";
 import { getDashboardCounts } from "@/lib/dashboardCounts";
+import ArchiveLinkButton from "@/components/ArchiveLinkButton";
 import NewProjectButton from "@/components/NewProjectButton";
 import ProjectList from "@/components/ProjectList";
 import DashboardFeatureGrid from "@/components/dashboard/DashboardFeatureGrid";
 
-export const metadata = { title: "Dashboard — WebsiteAlSat CRM" };
+export const metadata = { title: "Was CRM" };
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -14,6 +15,7 @@ export default async function DashboardPage() {
   let query = supabase
     .from("projects")
     .select("*, installation_forms(public_token)")
+    .eq("is_archived", false)
     .order("created_at", { ascending: false });
 
   if (!admin) {
@@ -42,10 +44,13 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Projeler</h1>
           <p className="text-sm text-zinc-500">
-            {admin ? "Tüm projeler (admin görünümü)" : "Sizin projeleriniz"}
+            {admin ? "Tüm projeler (Admin)" : "Projeleriniz"}
           </p>
         </div>
-        <NewProjectButton />
+        <div className="flex items-center gap-2">
+          <ArchiveLinkButton />
+          <NewProjectButton />
+        </div>
       </div>
 
       <ProjectList initialProjects={projects || []} isAdmin={admin} />
