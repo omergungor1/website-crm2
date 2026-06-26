@@ -15,6 +15,7 @@ export default async function ArchivePage() {
     .from("projects")
     .select("*, installation_forms(public_token)")
     .eq("is_archived", true)
+    .order("is_favorited", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (!admin) {

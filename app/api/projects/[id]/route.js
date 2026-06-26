@@ -36,7 +36,7 @@ export async function PATCH(request, { params }) {
   if (!allowed) return NextResponse.json({ error: "Erişim yok" }, { status: 403 });
 
   const body = await request.json();
-  const allowed_fields = ["name", "description", "payment_status", "is_archived", "type"];
+  const allowed_fields = ["name", "description", "payment_status", "is_archived", "is_favorited", "type"];
   const updates = {};
   for (const f of allowed_fields) {
     if (body[f] !== undefined) updates[f] = body[f];

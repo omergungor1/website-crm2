@@ -1,10 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/isAdmin";
-import { getDashboardCounts } from "@/lib/dashboardCounts";
 import ArchiveLinkButton from "@/components/ArchiveLinkButton";
 import NewProjectButton from "@/components/NewProjectButton";
-import ProjectList from "@/components/ProjectList";
-import DashboardFeatureGrid from "@/components/dashboard/DashboardFeatureGrid";
+import DashboardProjects from "@/components/dashboard/DashboardProjects";
 
 export const metadata = { title: "Was CRM" };
 
@@ -16,6 +14,7 @@ export default async function DashboardPage() {
     .from("projects")
     .select("*, installation_forms(public_token)")
     .eq("is_archived", false)
+    .order("is_favorited", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (!admin) {
@@ -24,22 +23,8 @@ export default async function DashboardPage() {
 
   const { data: projects } = await query;
 
-  const counts = await getDashboardCounts(supabase, user?.id, admin);
-
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-          Admin Sayfaları
-        </h2>
-        <DashboardFeatureGrid
-          admin={admin}
-          pendingUpdates={counts.pendingUpdates}
-          pendingInstallations={counts.pendingInstallations}
-          paymentPending={counts.paymentPending}
-        />
-      </div>
-
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Projeler</h1>
@@ -53,7 +38,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <ProjectList initialProjects={projects || []} isAdmin={admin} />
+      <DashboardProjects initialProjects={projects || []} isAdmin={admin} />
     </div>
   );
 }

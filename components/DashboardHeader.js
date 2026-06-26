@@ -15,12 +15,52 @@ function DefaultAvatarIcon({ className }) {
   );
 }
 
-export default function DashboardHeader({ user }) {
+function ProjectsIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
+    </svg>
+  );
+}
+
+function DeepWorkIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z" />
+    </svg>
+  );
+}
+
+function CallIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" />
+    </svg>
+  );
+}
+
+function navLinkClass(active) {
+  return `flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
+    active
+      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+  }`;
+}
+
+export default function DashboardHeader({ user, admin = false }) {
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const showProjectSwitcher = pathname?.startsWith("/projects/");
+
+  const isDeepWorkActive = pathname?.startsWith("/dashboard/deep-work");
+  const isProjectsActive =
+    !isDeepWorkActive &&
+    (pathname === "/dashboard" ||
+      pathname?.startsWith("/dashboard/") ||
+      pathname?.startsWith("/projects/"));
+  const isCrmActive = pathname === "/crm" || pathname?.startsWith("/crm/");
 
   useEffect(() => {
     if (!userMenuOpen) return;
@@ -72,6 +112,39 @@ export default function DashboardHeader({ user }) {
               Was CRM
             </span>
           </Link>
+
+          <nav className="flex shrink-0 items-center gap-1 border-l border-zinc-200 pl-2 dark:border-zinc-700 sm:pl-3">
+            <Link
+              href="/dashboard"
+              className={navLinkClass(isProjectsActive)}
+              title="Projeler"
+              onClick={() => setUserMenuOpen(false)}
+            >
+              <ProjectsIcon className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Projeler</span>
+            </Link>
+            <Link
+              href="/dashboard/deep-work"
+              className={navLinkClass(isDeepWorkActive)}
+              title="Deep Work"
+              onClick={() => setUserMenuOpen(false)}
+            >
+              <DeepWorkIcon className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Deep Work</span>
+            </Link>
+            {admin && (
+              <Link
+                href="/crm"
+                className={navLinkClass(isCrmActive)}
+                title="Müşteri CRM"
+                onClick={() => setUserMenuOpen(false)}
+              >
+                <CallIcon className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Müşteri CRM</span>
+              </Link>
+            )}
+          </nav>
+
           {showProjectSwitcher && (
             <Suspense
               fallback={

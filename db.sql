@@ -18,6 +18,7 @@ create table projects (
   admin_note text,
 
   is_archived boolean default false,
+  is_favorited boolean default false,
 
   created_at timestamp default now(),
   updated_at timestamp default now()
@@ -454,16 +455,83 @@ create table keyword_generation_jobs (
     completed_at timestamptz
 );
 
--- Mevcut veritabanı için (project_mvp_features):
--- create table project_mvp_features (
---   id uuid primary key default uuid_generate_v4(),
---   project_id uuid not null references projects(id) on delete cascade,
---   title text not null,
---   description text default '',
---   label text check (label is null or label in ('mvp', 'normal', 'later')),
---   sort_order integer not null default 0,
---   created_at timestamptz default now(),
---   updated_at timestamptz default now()
--- );
--- create index if not exists idx_project_mvp_features_project_id on project_mvp_features(project_id);
--- create index if not exists idx_project_mvp_features_project_sort on project_mvp_features(project_id, sort_order);
+-- =========================
+-- Deep Work (Odak Çalışma)
+-- =========================
+
+create table deep_work_tasks (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  title text not null,
+  description text default '',
+
+  status text not null default 'todo'
+    check (status in ('todo', 'doing', 'done', 'archive')),
+
+  priority text not null default 'normal'
+    check (priority in ('low', 'normal', 'high')),
+
+  estimated_minutes integer not null default 0,
+  worked_minutes integer not null default 0,
+  sort_order integer not null default 0,
+
+  project_id uuid references projects(id) on delete set null,
+  planned_date date,
+  is_today_plan boolean not null default false,
+
+  completed_at timestamptz,
+  archived_at timestamptz,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_deep_work_tasks_user_id on deep_work_tasks(user_id);
+create index idx_deep_work_tasks_status on deep_work_tasks(user_id, status);
+create index idx_deep_work_tasks_planned_date on deep_work_tasks(user_id, planned_date);
+create index idx_deep_work_tasks_today_plan on deep_work_tasks(user_id, is_today_plan);
+
+create table deep_work_sessions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  task_id uuid not null references deep_work_tasks(id) on delete cascade,
+
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  duration_minutes integer not null default 0,
+
+  session_type text not null default 'focus'
+    check (session_type in ('focus', 'break'))
+);
+
+create index idx_deep_work_sessions_user_id on deep_work_sessions(user_id);
+create index idx_deep_work_sessions_task_id on deep_work_sessions(task_id);
+create index idx_deep_work_sessions_active on deep_work_sessions(user_id) where ended_at is null;
+
+create table daily_reviews (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  review_date date not null,
+  today_summary text default '',
+  tomorrow_first_task text default '',
+  notes text default '',
+
+  created_at timestamptz not null default now(),
+
+  unique (user_id, review_date)
+);
+
+create index idx_daily_reviews_user_date on daily_reviews(user_id, review_date);
+
+create table deep_work_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+
+  daily_goal_minutes integer not null default 120,
+  pomodoro_work_minutes integer not null default 25,
+  pomodoro_break_minutes integer not null default 5,
+
+  updated_at timestamptz not null default now()
+);
+

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 export default function SettingsTab({
   projectId,
+  initialProjectName = "",
   initialIsArchived = false,
   initialPaymentStatus = "pending",
   initialProjectType = "landing_page",
@@ -14,6 +15,10 @@ export default function SettingsTab({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const [projectName, setProjectName] = useState(initialProjectName);
+  const [savedProjectName, setSavedProjectName] = useState(initialProjectName);
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameMsg, setNameMsg] = useState("");
   const [paymentStatus, setPaymentStatus] = useState(initialPaymentStatus);
   const [savedPaymentStatus, setSavedPaymentStatus] = useState(initialPaymentStatus);
   const [paymentSaving, setPaymentSaving] = useState(false);
@@ -55,6 +60,34 @@ export default function SettingsTab({
       setTimeout(() => setMsg(""), 3000);
     } else {
       setMsg("Hata oluştu");
+    }
+  }
+
+  async function handleNameSave(e) {
+    e.preventDefault();
+    const trimmed = projectName.trim();
+    if (!trimmed) {
+      setNameMsg("Proje adı boş olamaz");
+      return;
+    }
+
+    setNameSaving(true);
+    setNameMsg("");
+    const res = await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    const data = await res.json();
+    setNameSaving(false);
+    if (res.ok) {
+      setProjectName(trimmed);
+      setSavedProjectName(trimmed);
+      setNameMsg("Proje adı güncellendi");
+      router.refresh();
+      setTimeout(() => setNameMsg(""), 3000);
+    } else {
+      setNameMsg(data.error || "Hata oluştu");
     }
   }
 
@@ -136,9 +169,49 @@ export default function SettingsTab({
       <div>
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Site Ayarları</h2>
         <p className="text-sm text-zinc-500">
-          Proje türü, ödeme durumu, Google Analytics ve Search Console bilgilerini buradan yönetebilirsiniz.
+          Proje adı, tür, ödeme durumu, Google Analytics ve Search Console bilgilerini buradan yönetebilirsiniz.
         </p>
       </div>
+
+      <form
+        onSubmit={handleNameSave}
+        className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Proje Adı</h3>
+          <label className="mt-3 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Ad
+          </label>
+          <input
+            type="text"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            className={inputCls}
+            placeholder="Proje adı"
+            required
+          />
+          <p className="mt-1.5 text-xs text-zinc-500">
+            Dashboard ve proje sayfasında görünen isim.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {nameMsg && (
+            <span
+              className={`text-sm font-medium ${nameMsg.includes("Hata") || nameMsg.includes("boş") ? "text-red-600" : "text-emerald-600"}`}
+            >
+              {nameMsg}
+            </span>
+          )}
+          <button
+            type="submit"
+            disabled={nameSaving || projectName.trim() === savedProjectName}
+            className="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 sm:ml-auto sm:w-auto dark:bg-zinc-100 dark:text-zinc-900"
+          >
+            {nameSaving ? "Kaydediliyor…" : "Kaydet"}
+          </button>
+        </div>
+      </form>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <form
