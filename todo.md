@@ -1,18 +1,14 @@
-# Marketing Blueprint (Marketing OS) Özelliğini Admin Panele Ekle
+# Blueprint (Product Blueprint) Özelliğini Projeye Ekle
 
-Admin panelimize proje bazlı yeni bir özellik ekle.
+Projeler içerisine yeni bir sekme ekle.
 
-Bu özellik klasik bir "Pazarlama" sayfası değildir.
+Bu sekmenin amacı; bir projenin tüm temel bilgilerini, hedeflerini, kullanıcı kitlesini, MVP kapsamını ve stratejisini tek bir yerde toplamak olacaktır.
 
-Amaç, her proje için ürünün pazarlama operasyonlarını tek ekrandan yönetebileceğimiz bir **Marketing OS (Marketing Blueprint)** oluşturmaktır.
+Bu sayfa projenin **Single Source of Truth** (tek doğru bilgi kaynağı) olacaktır.
 
-Bu ekran ürün geliştirme süreciyle birlikte ilk günden itibaren kullanılmalıdır.
+Bir geliştirici, tasarımcı veya AI bu sayfayı okuduğunda proje hakkında ihtiyaç duyduğu tüm temel bilgileri anlayabilmelidir.
 
-AI destekli çalışmalıdır ve mevcut ChatGPT API altyapısını kullanabilecek şekilde tasarlanmalıdır.
-
-UI mevcut admin panelinin tasarım dili ile tamamen uyumlu olsun.
-
-Responsive çalışsın.
+Bu ekran daha sonra Todo, Marketing, AI ve Deep Work modülleri tarafından kullanılacaktır.
 
 ---
 
@@ -24,365 +20,319 @@ ALL_TABS
 
 listesine yeni sekme ekle.
 
-Yeni sekme
+Sekme adı
 
-```
-Pazarlama
-```
-
-veya
-
-```
-Marketing Blueprint
+```text
+Blueprint
 ```
 
 olsun.
 
-Bu sekme her proje içerisinde yer almalıdır.
+Sıralama önerisi
 
----
+```text
+Overview
 
-# Genel Yapı
+Blueprint
 
-Tek sayfalık bir operasyon ekranı oluştur.
+Todo
 
-Sayfa aşağıdaki bölümlerden oluşsun.
+Deep Work
 
----
+Marketing
 
-# 1) Marketing Score
+Files
 
-Sayfanın en üstünde AI analiz kartı olsun.
-
-Örneğin
-
-```
-Marketing Score
-
-38 / 100
-
-Henüz pazarlama planı oluşturulmamış.
-
-Eksikler
-
-• Landing Page
-
-• İlk içerikler
-
-• Dağıtım kanalları
-
-• Launch Planı
+Notes
 ```
 
-İleride ChatGPT API burayı otomatik dolduracak.
-
-Şimdilik CRUD destekli veri yapısını hazırla.
+Blueprint proje içerisindeki ilk çalışılan sayfa olmalıdır.
 
 ---
 
-# 2) Product Stage
+# Sayfa Yapısı
 
-Projenin bulunduğu aşama seçilebilsin.
+Tek sayfa halinde oluştur.
 
-Seçenekler
+Kart bazlı modern bir tasarım kullan.
 
-* Idea
-* Validation
-* MVP
-* Beta
-* Launch
-* Growth
-* Scale
+Mevcut admin panel tasarım diline tamamen uyumlu olsun.
 
-Stage değişince ekran buna göre filtrelenebilecek şekilde tasarla.
+Responsive çalışsın.
 
 ---
 
-# 3) Target Audience
+# 1) Product Summary
+
+En üstte kısa ürün tanımı.
+
+Alanlar
+
+* Ürün Adı
+* Kısa Açıklama
+* Elevator Pitch (Tek cümlelik açıklama)
+
+Örnek
+
+"AI destekli restoran QR sipariş sistemi"
+
+---
+
+# 2) Problem
+
+Bu ürün hangi problemi çözüyor?
+
+Uzun metin alanı.
+
+---
+
+# 3) Solution
+
+Problemi nasıl çözüyoruz?
+
+Uzun metin alanı.
+
+---
+
+# 4) Target Audience
+
+Hedef kullanıcı kitlesi
 
 Alanlar
 
 * Hedef Kitle
-* Problem
-* Çözüm
-* Rakipler
-* Değer Önerisi
+* Sektör
+* Ülke
+* Kullanıcı Tipi
+* Şirket Tipi
 
-Serbest metin alanları olsun.
+Örnek
 
----
+Restaurant
 
-# 4) Distribution Channels
+Doctor
 
-Checklist şeklinde olsun.
+Agency
 
-Platformlar
+Freelancer
 
-* SEO
-* Google Ads
-* Reddit
-* X (Twitter)
-* LinkedIn
-* Instagram
-* TikTok
-* Facebook
-* YouTube
-* Product Hunt
-* Hacker News
-* Email
-* Cold Email
-* Discord
-* Facebook Groups
-* WhatsApp
-* Affiliate
-* Influencer
-* Blog
-* App Store Optimization (ASO)
+Teacher
 
-Her platform için
+SMB
 
-* aktif mi
-* öncelik
-* not
-
-alanları bulunsun.
+Enterprise
 
 ---
 
-# 5) Organic / Paid
-
-Kart görünümü
-
-Organic
-
-%
-
-Paid
-
-%
-
-oranları belirlenebilsin.
-
----
-
-# 6) Content Strategy
-
-İçerik kategorileri oluştur.
-
-Örneğin
-
-* Eğitim
-* Problem
-* Çözüm
-* Özellik Tanıtımı
-* Karşılaştırma
-* Case Study
-* Founder Story
-* Behind The Scenes
-* Launch
-* Müşteri Hikayesi
-* Video
-* Blog
-* FAQ
-* Tips
-* Reel
-* Shorts
-
-Her kategori için
-
-haftalık paylaşım hedefi girilebilsin.
-
----
-
-# 7) Content Calendar
-
-Basit takvim görünümü oluştur.
-
-İçerikler günlere atanabilsin.
-
-İçerik tipi seçilebilsin.
-
-Durumu
-
-Planlandı
-
-Hazırlanıyor
-
-Hazır
-
-Paylaşıldı
-
-olsun.
-
----
-
-# 8) Marketing Funnel
-
-Görsel kart yapısı oluştur.
-
-Kutular
-
-Awareness
-
-↓
-
-Interest
-
-↓
-
-Signup
-
-↓
-
-Activation
-
-↓
-
-Revenue
-
-↓
-
-Referral
-
-Her kutuya açıklama yazılabilsin.
-
----
-
-# 9) Launch Checklist
-
-Checklist
-
-Örneğin
-
-* Landing Page
-* Domain
-* Analytics
-* Search Console
-* Logo
-* Pricing
-* Privacy Policy
-* Terms
-* Product Hunt
-* App Store Assets
-* Screenshots
-* Demo Video
-* Support Email
-* Waitlist
-* Email Automation
-
-Tamamlandı işaretlenebilsin.
-
----
-
-# 10) Weekly Marketing Plan
-
-Haftalık yapılacaklar.
-
-Kanban görünümü.
-
-Kolonlar
-
-* Todo
-* Doing
-* Done
-
-Kartlar
-
-* başlık
-* açıklama
-* bitiş tarihi
-* öncelik
-* sorumlu kişi
-
----
-
-# 11) Marketing Tasks
-
-Normal görev yönetimi.
+# 5) Ideal Customer Profile (ICP)
 
 Alanlar
+
+* Kullanıcı Profili
+* Şirket Büyüklüğü
+* Çalışan Sayısı
+* Tahmini Bütçe
+* Karar Verici
+* Teknik Seviyesi
+
+---
+
+# 6) Value Proposition
+
+Neden bu ürünü tercih etmeliler?
+
+Rakiplerden farkımız nedir?
+
+Uzun metin alanı.
+
+---
+
+# 7) Core Features
+
+Ürünün ana özellikleri.
+
+Liste şeklinde CRUD.
+
+Her özellik için
 
 * Başlık
 * Açıklama
 * Öncelik
-* Stage
-* Platform
-* Son Tarih
-* Sorumlu
-* Durum
+* MVP mi?
+
+Alanları olsun.
 
 ---
 
-# 12) Competitor Analysis
+# 8) MVP Scope
 
-Rakip ürünler eklenebilsin.
+Üç ayrı bölüm oluştur.
+
+MVP'de Olacak
+
+Sonraki Versiyon
+
+Gelecek Fikirler
+
+Sürükle bırak destekli olabilir.
+
+---
+
+# 9) Monetization
+
+Gelir modeli.
 
 Alanlar
 
-* Ürün adı
+* Freemium
+* Subscription
+* Lifetime
+* Enterprise
+* Marketplace
+* Commission
+* Ads
+
+Birden fazla seçim yapılabilsin.
+
+Fiyat notu eklenebilsin.
+
+---
+
+# 10) Success Metrics
+
+Başarı hedefleri.
+
+Örneğin
+
+* İlk 100 kullanıcı
+* İlk 10 müşteri
+* 1.000 aktif kullanıcı
+* 10K MRR
+* 100K ziyaretçi
+
+CRUD destekli liste.
+
+---
+
+# 11) Competitors
+
+Rakip analizi.
+
+Alanlar
+
+* Rakip Adı
 * Website
+* Güçlü Yanları
+* Zayıf Yanları
+* Bizim Farkımız
 * Notlar
-* Güçlü Yanlar
-* Zayıf Yanlar
-* Pazarlama Stratejisi
 
-İleride AI analiz edecek.
-
-Şimdilik CRUD yeterli.
+CRUD destekli.
 
 ---
 
-# 13) KPI Dashboard
+# 12) Tech Stack
 
-Kartlar
+Kullanılan teknolojiler.
 
-* Visitors
-* Downloads
-* Signups
-* Active Users
-* MRR
-* Conversion Rate
-* CAC
-* LTV
-* Email Subscribers
-* Followers
+Örneğin
 
-Manuel girilebilir.
+* Next.js
+* React
+* Expo
+* Supabase
+* PostgreSQL
+* OpenAI
+* Stripe
+
+Liste halinde yönetilebilsin.
 
 ---
 
-# 14) AI Marketing Coach
+# 13) Roadmap
 
-Şimdilik placeholder kart oluştur.
+Roadmap kartları.
+
+Örnek
+
+Idea
+
+↓
+
+Validation
+
+↓
+
+MVP
+
+↓
+
+Beta
+
+↓
+
+Launch
+
+↓
+
+Growth
+
+↓
+
+Scale
+
+Mevcut aşama seçilebilsin.
+
+---
+
+# 14) Project Vision
+
+Alanlar
+
+* Vizyon
+* Misyon
+* Uzun Vadeli Hedef
+
+Uzun metin alanları.
+
+---
+
+# 15) AI Product Brief
+
+Sayfanın en altında AI alanı oluştur.
+
+Şimdilik placeholder yeterli.
+
+Kart içerisinde
+
+```text
+AI Product Assistant
+```
+
+bulunsun.
 
 Buton
 
+```text
+Blueprint Oluştur
 ```
-Marketing Planı Oluştur
-```
 
-Buton şimdilik dummy olabilir.
+Şimdilik sadece component oluştur.
 
-İleride ChatGPT API kullanılacak.
+İleride ChatGPT API kullanılarak;
 
-Bu alan için component yapısını hazırla.
+* Ürün özeti
+* Hedef kitle
+* Persona
+* Value Proposition
+* Rakip analizi
+* MVP önerisi
+* Özellik önerileri
+* Pazarlama stratejisi
 
----
+otomatik üretilecek.
 
-# 15) Reverse Engineering
-
-Rakip stratejileri not alabileceğimiz bölüm.
-
-Alanlar
-
-* Ürün
-* Landing
-* Pricing
-* Ads
-* SEO
-* İçerik
-* Funnel
-* Notlar
+Bu alan buna uygun tasarlansın.
 
 ---
 
@@ -394,107 +344,86 @@ db.sql
 
 dosyasını güncelle.
 
-Mevcut tablo yapısını bozma.
-
 Yeni tabloları sona ekle.
+
+Mevcut yapıyı bozma.
 
 Mevcut
 
 projects
 
-tablosuna foreign key ile bağla.
+tablosuna foreign key ile bağlan.
 
-RLS KULLANMIYORUZ.
+RLS kullanılmıyor.
 
-Hiçbir yeni tablo için RLS oluşturma.
+Hiçbir yeni tablo için
 
-Policy oluşturma.
-
-Authentication ekleme.
+* RLS açma
+* Policy oluşturma
+* Auth kontrolü ekleme
 
 ---
 
-# Önerilen Tablolar
+# Oluşturulacak Tablolar
 
-marketing_blueprints
+## project_blueprints
 
-Projenin ana pazarlama ayarları
+Projenin ana Blueprint kaydı.
+
+Alanlar
 
 * id
 * project_id
-* stage
-* marketing_score
-* target_audience
+* short_description
+* elevator_pitch
 * problem
 * solution
+* target_audience
+* industry
+* country
+* company_type
+* ideal_customer_profile
 * value_proposition
-* organic_percentage
-* paid_percentage
-* notes
+* monetization_model
+* roadmap_stage
+* vision
+* mission
+* long_term_goal
 * created_at
 * updated_at
 
 ---
 
-marketing_channels
+## blueprint_features
 
-* id
-* blueprint_id
-* platform
-* enabled
-* priority
-* notes
-
----
-
-marketing_content_categories
-
-* id
-* blueprint_id
-* category
-* weekly_target
-
----
-
-marketing_contents
-
-* id
-* blueprint_id
-* title
-* category
-* platform
-* planned_date
-* status
-* notes
-
----
-
-marketing_tasks
+Alanlar
 
 * id
 * blueprint_id
 * title
 * description
-* platform
-* stage
 * priority
-* assigned_to
-* due_date
-* status
-* completed_at
+* is_mvp
+* sort_order
 
 ---
 
-marketing_launch_checklist
+## blueprint_success_metrics
+
+Alanlar
 
 * id
 * blueprint_id
-* item_name
+* title
+* target_value
+* current_value
 * completed
 
 ---
 
-marketing_competitors
+## blueprint_competitors
+
+Alanlar
 
 * id
 * blueprint_id
@@ -502,42 +431,70 @@ marketing_competitors
 * website
 * strengths
 * weaknesses
-* strategy
+* differentiation
 * notes
 
 ---
 
-marketing_kpis
+## blueprint_tech_stack
+
+Alanlar
 
 * id
 * blueprint_id
-* visitors
-* downloads
-* signups
-* active_users
-* mrr
-* conversion_rate
-* cac
-* ltv
-* email_subscribers
-* followers
-* created_at
+* technology
+* category
+
+Örneğin
+
+Frontend
+
+Backend
+
+Database
+
+AI
+
+Payment
+
+Hosting
+
+Analytics
+
+---
+
+## blueprint_mvp_items
+
+Alanlar
+
+* id
+* blueprint_id
+* title
+* description
+* stage
+
+stage değerleri
+
+* mvp
+* next_version
+* future
 
 ---
 
 # Teknik Gereksinimler
 
-* Mevcut component yapısını kullan.
-* TypeScript tiplerini eksiksiz oluştur.
+* TypeScript tiplerini oluştur.
 * CRUD işlemleri Supabase üzerinden yapılsın.
+* Mevcut component yapısı kullanılsın.
 * Kod modüler olsun.
 * Responsive çalışsın.
-* Tablolar arasında foreign key ilişkileri kur.
-* Formlarda validation kullan.
-* Mevcut tema ve UI bileşenlerini kullan.
-* Sayfa performanslı olsun.
-* Gereksiz paket ekleme.
+* Form validation ekle.
+* Foreign key ilişkilerini oluştur.
+* Gereksiz bağımlılık ekleme.
+* Kod okunabilir ve sürdürülebilir olsun.
 
-Bu ekranın amacı klasik bir pazarlama not defteri oluşturmak değildir.
+Bu sayfa projenin merkezi olacaktır.
 
-Amaç; bir SaaS, mobil uygulama veya dijital ürünün fikir aşamasından büyüme aşamasına kadar tüm pazarlama operasyonlarını tek ekrandan yönetebileceğimiz, ileride ChatGPT API ile otomatik strateji üretebilecek profesyonel bir **Marketing OS** altyapısı oluşturmaktır.
+İleride Todo, Deep Work, Marketing Blueprint ve AI modülleri bu sayfadaki bilgilerden faydalanacaktır.
+
+Amaç, proje hakkında tüm temel bilgilerin tek bir yerde tutulduğu profesyonel bir **Product Blueprint** altyapısı oluşturmaktır.

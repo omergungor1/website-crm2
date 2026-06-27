@@ -17,6 +17,7 @@ import ProjectOverviewTab from "@/components/project/ProjectOverviewTab";
 import TodoListTab from "@/components/project/TodoListTab";
 import MvpFeaturesTab from "@/components/project/MvpFeaturesTab";
 import MarketingBlueprintTab from "@/components/project/MarketingBlueprintTab";
+import ProductBlueprintTab from "@/components/project/ProductBlueprintTab";
 import ProjectMetaFilters from "@/components/project/ProjectMetaFilters";
 import { getTabsForProjectType, TabIcon, DEFAULT_PROJECT_TAB } from "@/components/project/ProjectNavSidebar";
 
@@ -110,6 +111,9 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
         <main className="min-w-0 flex-1 pb-24">
           {activeTab === "overview" && (
             <ProjectOverviewTab project={project} onNavigate={setActiveTab} />
+          )}
+          {activeTab === "blueprint" && (
+            <ProductBlueprintTab projectId={project.id} />
           )}
           {activeTab === "todo-list" && <TodoListTab projectId={project.id} />}
           {activeTab === "mvp-features" && <MvpFeaturesTab projectId={project.id} />}

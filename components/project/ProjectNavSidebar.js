@@ -10,6 +10,12 @@ function TabIcon({ tabKey, className }) {
           <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
         </svg>
       );
+    case "blueprint":
+      return (
+        <svg {...props}>
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm3-4H7v-2h8v2zm0-4H7V7h8v2z" />
+        </svg>
+      );
     case "todo-list":
       return (
         <svg {...props}>
@@ -117,6 +123,7 @@ function TabIcon({ tabKey, className }) {
 
 const ALL_TABS = [
   { key: "overview", label: "Ana Sayfa" },
+  { key: "blueprint", label: "Blueprint" },
   { key: "prompt", label: "Prompt" },
   { key: "todo-list", label: "Todo List" },
   { key: "mvp-features", label: "MVP Features", projectTypes: ["saas", "mobile_app"] },

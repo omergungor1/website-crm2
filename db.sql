@@ -740,3 +740,132 @@ create table marketing_kpis (
 
 create index idx_marketing_kpis_blueprint_id on marketing_kpis(blueprint_id);
 
+-- =========================
+-- Product Blueprint
+-- =========================
+
+create table project_blueprints (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null unique references projects(id) on delete cascade,
+
+  short_description text default '',
+  elevator_pitch text default '',
+  problem text default '',
+  solution text default '',
+
+  target_audience text default '',
+  industry text default '',
+  country text default '',
+  user_type text default '',
+  company_type text default '',
+
+  ideal_customer_profile jsonb not null default '{
+    "user_profile": "",
+    "company_size": "",
+    "employee_count": "",
+    "estimated_budget": "",
+    "decision_maker": "",
+    "technical_level": ""
+  }'::jsonb,
+
+  value_proposition text default '',
+
+  monetization_model jsonb not null default '{
+    "models": [],
+    "price_note": ""
+  }'::jsonb,
+
+  roadmap_stage text not null default 'idea'
+    check (roadmap_stage in ('idea','validation','mvp','beta','launch','growth','scale')),
+
+  vision text default '',
+  mission text default '',
+  long_term_goal text default '',
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_project_blueprints_project_id on project_blueprints(project_id);
+
+create table blueprint_features (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references project_blueprints(id) on delete cascade,
+
+  title text not null,
+  description text default '',
+  priority text not null default 'medium' check (priority in ('low','medium','high')),
+  is_mvp boolean not null default false,
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_blueprint_features_blueprint_id on blueprint_features(blueprint_id);
+
+create table blueprint_success_metrics (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references project_blueprints(id) on delete cascade,
+
+  title text not null,
+  target_value text default '',
+  current_value text default '',
+  completed boolean not null default false,
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_blueprint_success_metrics_blueprint_id on blueprint_success_metrics(blueprint_id);
+
+create table blueprint_competitors (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references project_blueprints(id) on delete cascade,
+
+  competitor_name text not null,
+  website text default '',
+  strengths text default '',
+  weaknesses text default '',
+  differentiation text default '',
+  notes text default '',
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_blueprint_competitors_blueprint_id on blueprint_competitors(blueprint_id);
+
+create table blueprint_tech_stack (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references project_blueprints(id) on delete cascade,
+
+  technology text not null,
+  category text default 'other'
+    check (category in ('frontend','backend','database','ai','payment','hosting','analytics','other')),
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_blueprint_tech_stack_blueprint_id on blueprint_tech_stack(blueprint_id);
+
+create table blueprint_mvp_items (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references project_blueprints(id) on delete cascade,
+
+  title text not null,
+  description text default '',
+  stage text not null default 'mvp'
+    check (stage in ('mvp','next_version','future')),
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_blueprint_mvp_items_blueprint_id on blueprint_mvp_items(blueprint_id);
+create index idx_blueprint_mvp_items_stage on blueprint_mvp_items(blueprint_id, stage);
+
