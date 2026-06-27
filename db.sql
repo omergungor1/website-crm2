@@ -7,6 +7,7 @@ create table projects (
 
   name text not null,
   description text,
+  setup_prompt text default '',
 
   type text default 'landing_page'
     check (type in ('landing_page','saas','mobile_app')),
@@ -534,4 +535,208 @@ create table deep_work_settings (
 
   updated_at timestamptz not null default now()
 );
+
+-- =========================
+-- Marketing Blueprint (Marketing OS)
+-- =========================
+
+create table marketing_blueprints (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null unique references projects(id) on delete cascade,
+
+  stage text not null default 'idea'
+    check (stage in ('idea','validation','mvp','beta','launch','growth','scale')),
+
+  marketing_score integer default 0 check (marketing_score >= 0 and marketing_score <= 100),
+  score_summary text default '',
+  score_gaps jsonb not null default '[]'::jsonb,
+
+  target_audience text default '',
+  problem text default '',
+  solution text default '',
+  competitors text default '',
+  value_proposition text default '',
+
+  organic_percentage integer default 50 check (organic_percentage >= 0 and organic_percentage <= 100),
+  paid_percentage integer default 50 check (paid_percentage >= 0 and paid_percentage <= 100),
+
+  funnel_data jsonb not null default '{
+    "awareness": "",
+    "interest": "",
+    "signup": "",
+    "activation": "",
+    "revenue": "",
+    "referral": ""
+  }'::jsonb,
+
+  reverse_engineering jsonb not null default '{
+    "product": "",
+    "landing": "",
+    "pricing": "",
+    "ads": "",
+    "seo": "",
+    "content": "",
+    "funnel": "",
+    "notes": ""
+  }'::jsonb,
+
+  notes text default '',
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_marketing_blueprints_project_id on marketing_blueprints(project_id);
+
+create table marketing_channels (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references marketing_blueprints(id) on delete cascade,
+
+  platform text not null,
+  enabled boolean not null default false,
+  priority text default 'medium' check (priority in ('low','medium','high')),
+  notes text default '',
+
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  unique (blueprint_id, platform)
+);
+
+create index idx_marketing_channels_blueprint_id on marketing_channels(blueprint_id);
+
+create table marketing_content_categories (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references marketing_blueprints(id) on delete cascade,
+
+  category text not null,
+  weekly_target integer not null default 0 check (weekly_target >= 0),
+
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  unique (blueprint_id, category)
+);
+
+create index idx_marketing_content_categories_blueprint_id on marketing_content_categories(blueprint_id);
+
+create table marketing_contents (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references marketing_blueprints(id) on delete cascade,
+
+  title text not null,
+  category text default '',
+  platform text default '',
+  planned_date date,
+  status text not null default 'planned'
+    check (status in ('planned','preparing','ready','published')),
+  notes text default '',
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_marketing_contents_blueprint_id on marketing_contents(blueprint_id);
+create index idx_marketing_contents_planned_date on marketing_contents(blueprint_id, planned_date);
+
+create table marketing_tasks (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references marketing_blueprints(id) on delete cascade,
+
+  title text not null,
+  description text default '',
+  platform text default '',
+  stage text default 'idea'
+    check (stage in ('idea','validation','mvp','beta','launch','growth','scale')),
+  priority text not null default 'medium' check (priority in ('low','medium','high')),
+  assigned_to text default '',
+  due_date date,
+  status text not null default 'todo'
+    check (status in ('todo','in_progress','done')),
+  completed_at timestamptz,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_marketing_tasks_blueprint_id on marketing_tasks(blueprint_id);
+create index idx_marketing_tasks_status on marketing_tasks(blueprint_id, status);
+
+create table marketing_weekly_tasks (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references marketing_blueprints(id) on delete cascade,
+
+  title text not null,
+  description text default '',
+  due_date date,
+  priority text not null default 'medium' check (priority in ('low','medium','high')),
+  assigned_to text default '',
+  status text not null default 'todo'
+    check (status in ('todo','doing','done')),
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_marketing_weekly_tasks_blueprint_id on marketing_weekly_tasks(blueprint_id);
+create index idx_marketing_weekly_tasks_status on marketing_weekly_tasks(blueprint_id, status);
+
+create table marketing_launch_checklist (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references marketing_blueprints(id) on delete cascade,
+
+  item_name text not null,
+  completed boolean not null default false,
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  unique (blueprint_id, item_name)
+);
+
+create index idx_marketing_launch_checklist_blueprint_id on marketing_launch_checklist(blueprint_id);
+
+create table marketing_competitors (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null references marketing_blueprints(id) on delete cascade,
+
+  competitor_name text not null,
+  website text default '',
+  strengths text default '',
+  weaknesses text default '',
+  strategy text default '',
+  notes text default '',
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_marketing_competitors_blueprint_id on marketing_competitors(blueprint_id);
+
+create table marketing_kpis (
+  id uuid primary key default gen_random_uuid(),
+  blueprint_id uuid not null unique references marketing_blueprints(id) on delete cascade,
+
+  visitors numeric default 0,
+  downloads numeric default 0,
+  signups numeric default 0,
+  active_users numeric default 0,
+  mrr numeric default 0,
+  conversion_rate numeric default 0,
+  cac numeric default 0,
+  ltv numeric default 0,
+  email_subscribers numeric default 0,
+  followers numeric default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_marketing_kpis_blueprint_id on marketing_kpis(blueprint_id);
 

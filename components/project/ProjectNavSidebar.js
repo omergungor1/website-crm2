@@ -94,6 +94,18 @@ function TabIcon({ tabKey, className }) {
           <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
         </svg>
       );
+    case "prompt":
+      return (
+        <svg {...props}>
+          <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.5h8v-1.5H8v1.5zm0-3h8V11H8v1.5zm0-3h5V9H8v1.5z" />
+        </svg>
+      );
+    case "marketing":
+      return (
+        <svg {...props}>
+          <path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9H0v2h4V9zm0 6h4v-2H4v2zM9 4V0H7v4h2zm6 0V0h-2v4h2zM7 20v4h2v-4H7zm6 0v4h2v-4h-2zM4.6 5.6c.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4z" />
+        </svg>
+      );
     default:
       return (
         <svg {...props}>
@@ -105,12 +117,14 @@ function TabIcon({ tabKey, className }) {
 
 const ALL_TABS = [
   { key: "overview", label: "Ana Sayfa" },
+  { key: "prompt", label: "Prompt" },
   { key: "todo-list", label: "Todo List" },
   { key: "mvp-features", label: "MVP Features", projectTypes: ["saas", "mobile_app"] },
   { key: "installation", label: "Kurulum Formu", projectTypes: ["landing_page"] },
   { key: "updates", label: "Güncellemeler" },
   { key: "domain", label: "Domain" },
   { key: "pages", label: "Sayfalar" },
+  { key: "marketing", label: "Pazarlama" },
   { key: "keyword-explorer", label: "Keyword Explorer" },
   { key: "logo", label: "Logo" },
   { key: "copyfast", label: "CopyFast" },

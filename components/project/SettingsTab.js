@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 export default function SettingsTab({
   projectId,
   initialProjectName = "",
+  initialProjectDescription = "",
   initialIsArchived = false,
   initialPaymentStatus = "pending",
   initialProjectType = "landing_page",
@@ -17,6 +18,8 @@ export default function SettingsTab({
   const [msg, setMsg] = useState("");
   const [projectName, setProjectName] = useState(initialProjectName);
   const [savedProjectName, setSavedProjectName] = useState(initialProjectName);
+  const [projectDescription, setProjectDescription] = useState(initialProjectDescription || "");
+  const [savedProjectDescription, setSavedProjectDescription] = useState(initialProjectDescription || "");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameMsg, setNameMsg] = useState("");
   const [paymentStatus, setPaymentStatus] = useState(initialPaymentStatus);
@@ -63,7 +66,7 @@ export default function SettingsTab({
     }
   }
 
-  async function handleNameSave(e) {
+  async function handleProjectInfoSave(e) {
     e.preventDefault();
     const trimmed = projectName.trim();
     if (!trimmed) {
@@ -71,19 +74,25 @@ export default function SettingsTab({
       return;
     }
 
+    const desc = projectDescription.trim();
+    const unchanged = trimmed === savedProjectName && desc === savedProjectDescription;
+    if (unchanged) return;
+
     setNameSaving(true);
     setNameMsg("");
     const res = await fetch(`/api/projects/${projectId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: trimmed }),
+      body: JSON.stringify({ name: trimmed, description: desc || null }),
     });
     const data = await res.json();
     setNameSaving(false);
     if (res.ok) {
       setProjectName(trimmed);
       setSavedProjectName(trimmed);
-      setNameMsg("Proje adı güncellendi");
+      setProjectDescription(desc);
+      setSavedProjectDescription(desc);
+      setNameMsg("Proje bilgileri güncellendi");
       router.refresh();
       setTimeout(() => setNameMsg(""), 3000);
     } else {
@@ -169,16 +178,16 @@ export default function SettingsTab({
       <div>
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Site Ayarları</h2>
         <p className="text-sm text-zinc-500">
-          Proje adı, tür, ödeme durumu, Google Analytics ve Search Console bilgilerini buradan yönetebilirsiniz.
+          Proje adı, açıklama, tür, ödeme durumu, Google Analytics ve Search Console bilgilerini buradan yönetebilirsiniz.
         </p>
       </div>
 
       <form
-        onSubmit={handleNameSave}
+        onSubmit={handleProjectInfoSave}
         className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"
       >
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Proje Adı</h3>
+          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Proje Bilgileri</h3>
           <label className="mt-3 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
             Ad
           </label>
@@ -190,8 +199,18 @@ export default function SettingsTab({
             placeholder="Proje adı"
             required
           />
+          <label className="mt-3 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Açıklama
+          </label>
+          <textarea
+            rows={3}
+            value={projectDescription}
+            onChange={(e) => setProjectDescription(e.target.value)}
+            className={`${inputCls} resize-none`}
+            placeholder="Proje hakkında kısa açıklama"
+          />
           <p className="mt-1.5 text-xs text-zinc-500">
-            Dashboard ve proje sayfasında görünen isim.
+            Dashboard listesinde ve proje özetinde görünür.
           </p>
         </div>
 
@@ -205,7 +224,11 @@ export default function SettingsTab({
           )}
           <button
             type="submit"
-            disabled={nameSaving || projectName.trim() === savedProjectName}
+            disabled={
+              nameSaving ||
+              (projectName.trim() === savedProjectName &&
+                projectDescription.trim() === savedProjectDescription)
+            }
             className="w-full rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 sm:ml-auto sm:w-auto dark:bg-zinc-100 dark:text-zinc-900"
           >
             {nameSaving ? "Kaydediliyor…" : "Kaydet"}

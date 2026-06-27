@@ -40,11 +40,10 @@ function CallIcon({ className }) {
 }
 
 function navLinkClass(active) {
-  return `flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
-    active
+  return `flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-3 ${active
       ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
       : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-  }`;
+    }`;
 }
 
 export default function DashboardHeader({ user, admin = false }) {
@@ -109,7 +108,7 @@ export default function DashboardHeader({ user, admin = false }) {
               priority
             />
             <span className="truncate text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              Was CRM
+              AI Product OS
             </span>
           </Link>
 

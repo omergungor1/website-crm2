@@ -6,6 +6,7 @@ import DomainTab from "@/components/project/DomainTab";
 import PagesTab from "@/components/project/PagesTab";
 import InstallationTab from "@/components/project/InstallationTab";
 import UpdatesTab from "@/components/project/UpdatesTab";
+import PromptTab from "@/components/project/PromptTab";
 import SettingsTab from "@/components/project/SettingsTab";
 import DbSchemaPlannerTab from "@/components/project/DbSchemaPlannerTab";
 import KeywordExplorerTab from "@/components/project/KeywordExplorerTab";
@@ -15,6 +16,7 @@ import AiTitleGeneratorTab from "@/components/project/AiTitleGeneratorTab";
 import ProjectOverviewTab from "@/components/project/ProjectOverviewTab";
 import TodoListTab from "@/components/project/TodoListTab";
 import MvpFeaturesTab from "@/components/project/MvpFeaturesTab";
+import MarketingBlueprintTab from "@/components/project/MarketingBlueprintTab";
 import ProjectMetaFilters from "@/components/project/ProjectMetaFilters";
 import { getTabsForProjectType, TabIcon, DEFAULT_PROJECT_TAB } from "@/components/project/ProjectNavSidebar";
 
@@ -102,13 +104,6 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
                 </button>
               );
             })}
-            <div className="hidden sm:block">
-              <ProjectMetaFilters
-                readOnly
-                activeStatus={project.status || "created"}
-                activeType={projectType}
-              />
-            </div>
           </nav>
         </aside>
 
@@ -137,6 +132,9 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
             <DomainTab projectId={project.id} initialDomains={project.domains || []} />
           )}
           {activeTab === "pages" && <PagesTab sitePages={project.site_pages || []} />}
+          {activeTab === "marketing" && (
+            <MarketingBlueprintTab projectId={project.id} />
+          )}
           {activeTab === "keyword-explorer" && (
             <KeywordExplorerTab projectId={project.id} />
           )}
@@ -163,10 +161,14 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
               <p className="text-sm text-zinc-500">Mesajlar özelliği yakında eklenecek.</p>
             </div>
           )}
+          {activeTab === "prompt" && (
+            <PromptTab projectId={project.id} initialSetupPrompt={project.setup_prompt} />
+          )}
           {activeTab === "settings" && (
             <SettingsTab
               projectId={project.id}
               initialProjectName={project.name}
+              initialProjectDescription={project.description}
               initialIsArchived={project.is_archived}
               initialPaymentStatus={project.payment_status}
               initialProjectType={project.type || "landing_page"}

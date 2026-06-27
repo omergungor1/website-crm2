@@ -1,362 +1,543 @@
-# Deep Work (2 Saat Odak Sistemi) Özelliği Ekleme Promptu
+# Marketing Blueprint (Marketing OS) Özelliğini Admin Panele Ekle
 
-Mevcut admin panelimize **Deep Work (Günlük 2 Saat Odak Çalışma Sistemi)** özelliği ekle.
+Admin panelimize proje bazlı yeni bir özellik ekle.
 
-Amacımız klasik bir Todo uygulaması yapmak değil. Amaç, her gün sadece en önemli işleri seçip 2 saat boyunca odaklanarak ilerleyebileceğimiz bir sistem oluşturmak.
+Bu özellik klasik bir "Pazarlama" sayfası değildir.
 
-Tasarım dili mevcut admin paneli ile tamamen uyumlu olsun. Yeni sayfalar mevcut component yapısını kullansın. Responsive çalışsın.
+Amaç, her proje için ürünün pazarlama operasyonlarını tek ekrandan yönetebileceğimiz bir **Marketing OS (Marketing Blueprint)** oluşturmaktır.
 
----
+Bu ekran ürün geliştirme süreciyle birlikte ilk günden itibaren kullanılmalıdır.
 
-## Genel Mimari
+AI destekli çalışmalıdır ve mevcut ChatGPT API altyapısını kullanabilecek şekilde tasarlanmalıdır.
 
-Yeni özellikleri tamamen mevcut admin paneline entegre et.
+UI mevcut admin panelinin tasarım dili ile tamamen uyumlu olsun.
 
-Yeni ayrı bir uygulama oluşturma.
-
-Dashboard içerisine yeni bir sekme veya üst bölüm eklenmesi daha uygun olacaktır.
-
-Önerilen akış:
-
-Dashboard
-
-* Genel Dashboard
-* Deep Work
-
-Dashboard açıldığında üst tarafta sekmeler olabilir.
-
-```
-Dashboard | Deep Work
-```
-
-Deep Work sekmesine girildiğinde aşağıdaki ekran gösterilsin.
+Responsive çalışsın.
 
 ---
 
-# Dashboard (Deep Work)
+# Menü
 
-En üstte
+ProjectNavSidebar içerisinde bulunan
+
+ALL_TABS
+
+listesine yeni sekme ekle.
+
+Yeni sekme
 
 ```
-Bugünkü Hedef
-
-120 / 120 dk
-
-Progress Bar
+Pazarlama
 ```
 
-Altında
+veya
 
-Bugünün görevleri
+```
+Marketing Blueprint
+```
 
-Toplam süre
+olsun.
 
-Kalan süre
-
-Başlat butonu
-
-Alt tarafta
-
-Bugün tamamlanan görevler
-
-Alt tarafta
-
-Kısa günlük not
+Bu sekme her proje içerisinde yer almalıdır.
 
 ---
 
-# Inbox
+# Genel Yapı
 
-Aklıma gelen işleri hızlıca ekleyebileceğim sayfa.
+Tek sayfalık bir operasyon ekranı oluştur.
+
+Sayfa aşağıdaki bölümlerden oluşsun.
+
+---
+
+# 1) Marketing Score
+
+Sayfanın en üstünde AI analiz kartı olsun.
+
+Örneğin
+
+```
+Marketing Score
+
+38 / 100
+
+Henüz pazarlama planı oluşturulmamış.
+
+Eksikler
+
+• Landing Page
+
+• İlk içerikler
+
+• Dağıtım kanalları
+
+• Launch Planı
+```
+
+İleride ChatGPT API burayı otomatik dolduracak.
+
+Şimdilik CRUD destekli veri yapısını hazırla.
+
+---
+
+# 2) Product Stage
+
+Projenin bulunduğu aşama seçilebilsin.
+
+Seçenekler
+
+* Idea
+* Validation
+* MVP
+* Beta
+* Launch
+* Growth
+* Scale
+
+Stage değişince ekran buna göre filtrelenebilecek şekilde tasarla.
+
+---
+
+# 3) Target Audience
 
 Alanlar
 
-* Başlık
-* Açıklama
-* Tahmini süre
-* Proje
-* Öncelik
+* Hedef Kitle
+* Problem
+* Çözüm
+* Rakipler
+* Değer Önerisi
 
-Buraya eklenen işler daha sonra Kanban'a düşmeli.
+Serbest metin alanları olsun.
 
 ---
 
-# Kanban
+# 4) Distribution Channels
+
+Checklist şeklinde olsun.
+
+Platformlar
+
+* SEO
+* Google Ads
+* Reddit
+* X (Twitter)
+* LinkedIn
+* Instagram
+* TikTok
+* Facebook
+* YouTube
+* Product Hunt
+* Hacker News
+* Email
+* Cold Email
+* Discord
+* Facebook Groups
+* WhatsApp
+* Affiliate
+* Influencer
+* Blog
+* App Store Optimization (ASO)
+
+Her platform için
+
+* aktif mi
+* öncelik
+* not
+
+alanları bulunsun.
+
+---
+
+# 5) Organic / Paid
+
+Kart görünümü
+
+Organic
+
+%
+
+Paid
+
+%
+
+oranları belirlenebilsin.
+
+---
+
+# 6) Content Strategy
+
+İçerik kategorileri oluştur.
+
+Örneğin
+
+* Eğitim
+* Problem
+* Çözüm
+* Özellik Tanıtımı
+* Karşılaştırma
+* Case Study
+* Founder Story
+* Behind The Scenes
+* Launch
+* Müşteri Hikayesi
+* Video
+* Blog
+* FAQ
+* Tips
+* Reel
+* Shorts
+
+Her kategori için
+
+haftalık paylaşım hedefi girilebilsin.
+
+---
+
+# 7) Content Calendar
+
+Basit takvim görünümü oluştur.
+
+İçerikler günlere atanabilsin.
+
+İçerik tipi seçilebilsin.
+
+Durumu
+
+Planlandı
+
+Hazırlanıyor
+
+Hazır
+
+Paylaşıldı
+
+olsun.
+
+---
+
+# 8) Marketing Funnel
+
+Görsel kart yapısı oluştur.
+
+Kutular
+
+Awareness
+
+↓
+
+Interest
+
+↓
+
+Signup
+
+↓
+
+Activation
+
+↓
+
+Revenue
+
+↓
+
+Referral
+
+Her kutuya açıklama yazılabilsin.
+
+---
+
+# 9) Launch Checklist
+
+Checklist
+
+Örneğin
+
+* Landing Page
+* Domain
+* Analytics
+* Search Console
+* Logo
+* Pricing
+* Privacy Policy
+* Terms
+* Product Hunt
+* App Store Assets
+* Screenshots
+* Demo Video
+* Support Email
+* Waitlist
+* Email Automation
+
+Tamamlandı işaretlenebilsin.
+
+---
+
+# 10) Weekly Marketing Plan
+
+Haftalık yapılacaklar.
+
+Kanban görünümü.
 
 Kolonlar
 
 * Todo
 * Doing
 * Done
-* Archive
 
-Sürükle bırak desteklenmeli.
+Kartlar
 
-Kart içerisinde
-
-* Başlık
-* Açıklama
-* Tahmini süre
-* Gerçek çalışma süresi
-* Proje
-* Öncelik
-* Oluşturulma tarihi
-* Tamamlanma tarihi
-
-Kartlar istenirse arşivlenebilmeli.
-
-Silme desteği olmalı.
+* başlık
+* açıklama
+* bitiş tarihi
+* öncelik
+* sorumlu kişi
 
 ---
 
-# Günlük Plan
+# 11) Marketing Tasks
 
-Her sabah sadece bugünkü yapılacak işler seçilebilmeli.
-
-Örneğin
-
-```
-Landing Page
-
-45 dk
-
-Stripe
-
-30 dk
-
-Pricing
-
-45 dk
-```
-
-Toplam
-
-120 dakika
-
-Kullanıcı isterse farklı süreler seçebilir.
-
-Toplam süre gösterilmeli.
-
----
-
-# Deep Work Modu
-
-En önemli ekran burası.
-
-Bugün seçilmiş görevler listelenmeli.
-
-Her görev için
-
-Başlat
-
-Durdur
-
-Devam Et
-
-Tamamlandı
-
-butonları olmalı.
-
-Aktif görev çalışırken timer çalışmalı.
-
-Timer durdurulursa geçen süre kaydedilmeli.
-
-Görev tamamlandığında
-
-Done kolonuna taşınmalı.
-
-completed_at alanı doldurulmalı.
-
-Gerçek çalışma süresi hesaplanmalı.
-
----
-
-# Pomodoro
-
-Pomodoro desteği ekle.
-
-Varsayılan
-
-25 dakika çalışma
-
-5 dakika mola
-
-Ayarlar değiştirilebilir.
-
-Timer kapatılsa bile çalışan süre Supabase'e kaydedilmeli.
-
-Her görevin toplam çalışma süresi tutulmalı.
-
----
-
-# Takvim
-
-Takvim görünümü ekle.
-
-Takvim üzerinde
-
-Günlere görev planlanabilsin.
-
-Bir görev herhangi bir güne atanabilsin.
-
-Görev tamamlanınca tamamlanma tarihi otomatik işlensin.
-
-Takvim sadece planlama amacıyla kullanılacak.
-
----
-
-# İstatistik
-
-Gösterilecek bilgiler
-
-Bu hafta toplam çalışma süresi
-
-Bu ay toplam çalışma süresi
-
-Tamamlanan görev sayısı
-
-Toplam Deep Work süresi
-
-Arka arkaya çalışma günü (Streak)
-
-En çok zaman harcanan projeler
-
----
-
-# Projeler
-
-Mevcut
-
-projects
-
-tablosu zaten var.
-
-Yeni görev oluştururken
-
-Project seçilebilmeli.
-
-Task ilgili project kaydına bağlanmalı.
-
-Project silinirse task silinmesin.
-
-project_id nullable olabilir.
-
----
-
-# Gün Sonu
-
-Kısa değerlendirme
+Normal görev yönetimi.
 
 Alanlar
 
-Bugün ne yaptım
-
-Yarın ilk yapacağım iş
-
-Not
+* Başlık
+* Açıklama
+* Öncelik
+* Stage
+* Platform
+* Son Tarih
+* Sorumlu
+* Durum
 
 ---
 
-# Arşiv
+# 12) Competitor Analysis
 
-Archive kolonundaki işler burada listelenmeli.
+Rakip ürünler eklenebilsin.
 
-İstenirse geri alınabilmeli.
+Alanlar
 
-Kalıcı silme yapılabilmeli.
+* Ürün adı
+* Website
+* Notlar
+* Güçlü Yanlar
+* Zayıf Yanlar
+* Pazarlama Stratejisi
+
+İleride AI analiz edecek.
+
+Şimdilik CRUD yeterli.
+
+---
+
+# 13) KPI Dashboard
+
+Kartlar
+
+* Visitors
+* Downloads
+* Signups
+* Active Users
+* MRR
+* Conversion Rate
+* CAC
+* LTV
+* Email Subscribers
+* Followers
+
+Manuel girilebilir.
+
+---
+
+# 14) AI Marketing Coach
+
+Şimdilik placeholder kart oluştur.
+
+Buton
+
+```
+Marketing Planı Oluştur
+```
+
+Buton şimdilik dummy olabilir.
+
+İleride ChatGPT API kullanılacak.
+
+Bu alan için component yapısını hazırla.
+
+---
+
+# 15) Reverse Engineering
+
+Rakip stratejileri not alabileceğimiz bölüm.
+
+Alanlar
+
+* Ürün
+* Landing
+* Pricing
+* Ads
+* SEO
+* İçerik
+* Funnel
+* Notlar
 
 ---
 
 # Veritabanı
 
-Supabase kullanıyoruz.
-
-Ana dizinde
+Ana dizinde bulunan
 
 db.sql
 
-dosyası mevcut.
-
-Yeni tablolar ve migration SQL kodları doğrudan db.sql dosyasına eklensin.
+dosyasını güncelle.
 
 Mevcut tablo yapısını bozma.
 
-Mevcut project tablosuna uyumlu çalış.
+Yeni tabloları sona ekle.
 
-Yeni tablolar oluştur.
+Mevcut
 
-Önerilen tablolar
+projects
 
-deep_work_tasks
+tablosuna foreign key ile bağla.
 
-* id
-* title
-* description
-* status
-* priority
-* estimated_minutes
-* worked_minutes
-* project_id
-* planned_date
-* completed_at
-* archived_at
-* created_at
-* updated_at
+RLS KULLANMIYORUZ.
 
-deep_work_sessions
-
-Her timer oturumu burada tutulacak.
-
-Alanlar
-
-* id
-* task_id
-* started_at
-* ended_at
-* duration_minutes
-
-daily_reviews
-
-Alanlar
-
-* id
-* review_date
-* today_summary
-* tomorrow_first_task
-* notes
-* created_at
-
-İlişkileri foreign key ile oluştur.
-
-project_id mevcut projects tablosuna bağlansın.
-
----
-
-# RLS
-
-Bu proje hızlı MVP olduğu için
-
-Tüm yeni tablolar için
-
-RLS kapalı olsun.
+Hiçbir yeni tablo için RLS oluşturma.
 
 Policy oluşturma.
 
-Authentication kontrolü ekleme.
+Authentication ekleme.
 
 ---
 
-# Kod Kalitesi
+# Önerilen Tablolar
+
+marketing_blueprints
+
+Projenin ana pazarlama ayarları
+
+* id
+* project_id
+* stage
+* marketing_score
+* target_audience
+* problem
+* solution
+* value_proposition
+* organic_percentage
+* paid_percentage
+* notes
+* created_at
+* updated_at
+
+---
+
+marketing_channels
+
+* id
+* blueprint_id
+* platform
+* enabled
+* priority
+* notes
+
+---
+
+marketing_content_categories
+
+* id
+* blueprint_id
+* category
+* weekly_target
+
+---
+
+marketing_contents
+
+* id
+* blueprint_id
+* title
+* category
+* platform
+* planned_date
+* status
+* notes
+
+---
+
+marketing_tasks
+
+* id
+* blueprint_id
+* title
+* description
+* platform
+* stage
+* priority
+* assigned_to
+* due_date
+* status
+* completed_at
+
+---
+
+marketing_launch_checklist
+
+* id
+* blueprint_id
+* item_name
+* completed
+
+---
+
+marketing_competitors
+
+* id
+* blueprint_id
+* competitor_name
+* website
+* strengths
+* weaknesses
+* strategy
+* notes
+
+---
+
+marketing_kpis
+
+* id
+* blueprint_id
+* visitors
+* downloads
+* signups
+* active_users
+* mrr
+* conversion_rate
+* cac
+* ltv
+* email_subscribers
+* followers
+* created_at
+
+---
+
+# Teknik Gereksinimler
 
 * Mevcut component yapısını kullan.
-* Yeni UI mevcut tema ile tamamen uyumlu olsun.
-* Responsive çalışsın.
-* TypeScript tipleri eksiksiz olsun.
-* Kod modüler olsun.
+* TypeScript tiplerini eksiksiz oluştur.
 * CRUD işlemleri Supabase üzerinden yapılsın.
-* Gereksiz bağımlılık ekleme.
-* Drag & Drop stabil çalışsın.
-* Timer sayfa yenilense bile doğru şekilde devam edebilsin veya geçen süre hesaplanarak senkronize olsun.
-* Kodun tamamında okunabilirlik ön planda olsun.
+* Kod modüler olsun.
+* Responsive çalışsın.
+* Tablolar arasında foreign key ilişkileri kur.
+* Formlarda validation kullan.
+* Mevcut tema ve UI bileşenlerini kullan.
+* Sayfa performanslı olsun.
+* Gereksiz paket ekleme.
 
-Amaç, mevcut admin paneli içerisine entegre çalışan, günlük 2 saat odak çalışma sistemine sahip, sade ama güçlü bir üretkenlik modülü oluşturmaktır.
+Bu ekranın amacı klasik bir pazarlama not defteri oluşturmak değildir.
+
+Amaç; bir SaaS, mobil uygulama veya dijital ürünün fikir aşamasından büyüme aşamasına kadar tüm pazarlama operasyonlarını tek ekrandan yönetebileceğimiz, ileride ChatGPT API ile otomatik strateji üretebilecek profesyonel bir **Marketing OS** altyapısı oluşturmaktır.

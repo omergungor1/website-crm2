@@ -22,11 +22,10 @@ function FilterChip({ label, active, onClick, readOnly, activeClass }) {
     <button
       type="button"
       onClick={onClick}
-      className={`${chipBase} ${
-        active
-          ? activeClass
-          : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-      }`}
+      className={`${chipBase} ${active
+        ? activeClass
+        : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        }`}
     >
       {label}
     </button>
