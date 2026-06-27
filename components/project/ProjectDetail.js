@@ -18,6 +18,8 @@ import TodoListTab from "@/components/project/TodoListTab";
 import MvpFeaturesTab from "@/components/project/MvpFeaturesTab";
 import MarketingBlueprintTab from "@/components/project/MarketingBlueprintTab";
 import ProductBlueprintTab from "@/components/project/ProductBlueprintTab";
+import NameFinderTab from "@/components/project/NameFinderTab";
+import SlogansTab from "@/components/project/SlogansTab";
 import ProjectMetaFilters from "@/components/project/ProjectMetaFilters";
 import { getTabsForProjectType, TabIcon, DEFAULT_PROJECT_TAB } from "@/components/project/ProjectNavSidebar";
 
@@ -114,6 +116,12 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
           )}
           {activeTab === "blueprint" && (
             <ProductBlueprintTab projectId={project.id} />
+          )}
+          {activeTab === "name-finder" && (
+            <NameFinderTab projectId={project.id} />
+          )}
+          {activeTab === "slogans" && (
+            <SlogansTab projectId={project.id} />
           )}
           {activeTab === "todo-list" && <TodoListTab projectId={project.id} />}
           {activeTab === "mvp-features" && <MvpFeaturesTab projectId={project.id} />}

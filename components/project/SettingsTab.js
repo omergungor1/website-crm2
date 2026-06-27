@@ -12,7 +12,11 @@ export default function SettingsTab({
   initialProjectType = "landing_page",
 }) {
   const router = useRouter();
-  const [form, setForm] = useState({ google_analytics_id: "", google_search_console: "" });
+  const [form, setForm] = useState({
+    google_analytics_id: "",
+    google_search_console: "",
+    supabase_account: "",
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -42,6 +46,7 @@ export default function SettingsTab({
         setForm({
           google_analytics_id: d.google_analytics_id || "",
           google_search_console: d.google_search_console || "",
+          supabase_account: d.supabase_account || "",
         });
         setLoading(false);
       })
@@ -178,7 +183,7 @@ export default function SettingsTab({
       <div>
         <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Site Ayarları</h2>
         <p className="text-sm text-zinc-500">
-          Proje adı, açıklama, tür, ödeme durumu, Google Analytics ve Search Console bilgilerini buradan yönetebilirsiniz.
+          Proje adı, açıklama, tür, ödeme durumu, Google Analytics, Search Console ve Supabase hesap bilgilerini buradan yönetebilirsiniz.
         </p>
       </div>
 
@@ -336,6 +341,22 @@ export default function SettingsTab({
             className={inputCls}
             placeholder="Örn: G-XXXXXXXXXX"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            Supabase Hesap
+          </label>
+          <input
+            type="email"
+            value={form.supabase_account}
+            onChange={(e) => setForm((p) => ({ ...p, supabase_account: e.target.value }))}
+            className={inputCls}
+            placeholder="örn: proje@supabase.com"
+          />
+          <p className="mt-1.5 text-xs text-zinc-500">
+            Projenin hangi Supabase e-posta hesabında tutulduğunu yazın.
+          </p>
         </div>
 
         <div>

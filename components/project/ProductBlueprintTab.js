@@ -71,6 +71,21 @@ export default function ProductBlueprintTab({ projectId }) {
         </p>
       </div>
 
+      <AiProductBriefSection
+        projectId={projectId}
+        onBriefGenerated={(result) => {
+          setData({
+            project: result.project,
+            blueprint: result.blueprint,
+            features: result.features,
+            successMetrics: result.successMetrics,
+            competitors: result.competitors,
+            techStack: result.techStack,
+            mvpItems: result.mvpItems,
+          });
+        }}
+      />
+
       <ProductSummarySection
         projectId={projectId}
         projectName={project?.name}
@@ -131,7 +146,6 @@ export default function ProductBlueprintTab({ projectId }) {
       />
       <RoadmapSection projectId={projectId} blueprint={blueprint} onUpdate={updateBlueprint} />
       <VisionSection projectId={projectId} blueprint={blueprint} onUpdate={updateBlueprint} />
-      <AiProductBriefSection />
     </div>
   );
 }

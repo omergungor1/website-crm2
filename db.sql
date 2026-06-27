@@ -216,6 +216,7 @@ create table site_settings (
 
   google_analytics_id text,
   google_search_console text,
+  supabase_account text,
 
   created_at timestamp default now(),
   updated_at timestamp default now()
@@ -868,4 +869,48 @@ create table blueprint_mvp_items (
 
 create index idx_blueprint_mvp_items_blueprint_id on blueprint_mvp_items(blueprint_id);
 create index idx_blueprint_mvp_items_stage on blueprint_mvp_items(blueprint_id, stage);
+
+-- =========================
+-- Proje İsim Bulucu
+-- =========================
+
+create table project_name_candidates (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+
+  name text not null,
+  notes text default '',
+  source text not null default 'manual' check (source in ('manual', 'ai')),
+  is_favorited boolean not null default false,
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_project_name_candidates_project_id on project_name_candidates(project_id);
+create index idx_project_name_candidates_favorited on project_name_candidates(project_id, is_favorited desc, sort_order);
+
+-- =========================
+-- Slogan & Satış Metinleri
+-- =========================
+
+create table project_slogans (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+
+  content text not null,
+  copy_type text not null default 'slogan'
+    check (copy_type in ('slogan', 'sales_copy', 'tagline', 'headline')),
+  notes text default '',
+  source text not null default 'manual' check (source in ('manual', 'ai')),
+  is_favorited boolean not null default false,
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_project_slogans_project_id on project_slogans(project_id);
+create index idx_project_slogans_favorited on project_slogans(project_id, is_favorited desc, sort_order);
 
