@@ -12,6 +12,7 @@ function checkSetupAuth(request) {
   return header === secret || urlSecret === secret;
 }
 
+
 function configDiagnostics(config) {
   return {
     token_preview: maskBotToken(config.botToken),
