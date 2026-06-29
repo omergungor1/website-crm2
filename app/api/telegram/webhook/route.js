@@ -5,6 +5,7 @@ import { sendMessage, sendChatAction } from "@/lib/telegram/client";
 import { transcribeVoice } from "@/lib/telegram/transcribe";
 import { processMessage } from "@/lib/telegram/processor";
 import { getTelegramConfig } from "@/lib/telegram/config";
+import { logAiUsage } from "@/lib/telegram/db";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,6 +16,7 @@ export async function POST(request) {
   }
 
   if (!validateWebhookSecret(request)) {
+    console.error("[telegram/webhook] Geçersiz secret header");
     return NextResponse.json({ ok: false, error: "Geçersiz webhook secret" }, { status: 403 });
   }
 
@@ -74,6 +76,17 @@ export async function POST(request) {
     });
   } catch (err) {
     console.error("[telegram] İşleme hatası:", err);
+    try {
+      await logAiUsage({
+        telegramUserId,
+        action: "webhook_error",
+        intent: "error",
+        tokenUsage: 0,
+        responseTimeMs: 0,
+      });
+    } catch {
+      // log hatası sessiz geç
+    }
     await sendMessage(chatId, "Bir hata oluştu. Lütfen tekrar dene.");
   }
 
