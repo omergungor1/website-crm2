@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SectionCard, SaveIndicator, inputCls, textareaCls, selectCls, labelCls } from "./ui";
 import { useAutoSave } from "./useAutoSave";
+import { useBlueprintSync } from "./blueprintFormSync";
 import { USER_TYPES, COMPANY_TYPES } from "@/lib/productBlueprint/constants";
 import { patchBlueprint } from "@/lib/productBlueprint/clientApi";
 
@@ -20,12 +21,7 @@ export default function TargetAudienceSection({ projectId, blueprint, onUpdate }
   const [form, setForm] = useState(snapshotFromBlueprint(null));
   const [savedForm, setSavedForm] = useState(snapshotFromBlueprint(null));
 
-  useEffect(() => {
-    if (!blueprint) return;
-    const snap = snapshotFromBlueprint(blueprint);
-    setForm(snap);
-    setSavedForm(snap);
-  }, [blueprint]);
+  useBlueprintSync(blueprint, snapshotFromBlueprint, setForm, setSavedForm, savedForm);
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
 

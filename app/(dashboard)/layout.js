@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }) {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-screen bg-zinc-50 [--dashboard-header-height:3.75rem] dark:bg-zinc-950">
       <DashboardHeader user={user} admin={admin} />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">{children}</main>
     </div>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SectionCard, SaveIndicator, inputCls, textareaCls, btnPrimaryCls, labelCls } from "./ui";
 import { useAutoSave } from "./useAutoSave";
+import { useBlueprintSync } from "./blueprintFormSync";
 import { createCompetitor, patchCompetitor, deleteCompetitor } from "@/lib/productBlueprint/clientApi";
 
 function competitorSnapshot(competitor) {
@@ -21,11 +22,7 @@ function CompetitorCard({ competitor, projectId, onUpdate, onDelete }) {
   const [form, setForm] = useState(competitorSnapshot(competitor));
   const [savedForm, setSavedForm] = useState(competitorSnapshot(competitor));
 
-  useEffect(() => {
-    const snap = competitorSnapshot(competitor);
-    setForm(snap);
-    setSavedForm(snap);
-  }, [competitor]);
+  useBlueprintSync(competitor, competitorSnapshot, setForm, setSavedForm, savedForm);
 
   const isDirty = editing && JSON.stringify(form) !== JSON.stringify(savedForm);
 

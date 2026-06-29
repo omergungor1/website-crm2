@@ -1,24 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SectionCard, SaveIndicator, textareaCls, labelCls } from "./ui";
 import { useAutoSave } from "./useAutoSave";
+import { useBlueprintSync } from "./blueprintFormSync";
 import { patchBlueprint } from "@/lib/productBlueprint/clientApi";
+
+function snapshotFromBlueprint(blueprint) {
+  return {
+    vision: blueprint?.vision || "",
+    mission: blueprint?.mission || "",
+    long_term_goal: blueprint?.long_term_goal || "",
+  };
+}
 
 export default function VisionSection({ projectId, blueprint, onUpdate }) {
   const [form, setForm] = useState({ vision: "", mission: "", long_term_goal: "" });
   const [savedForm, setSavedForm] = useState({ vision: "", mission: "", long_term_goal: "" });
 
-  useEffect(() => {
-    if (!blueprint) return;
-    const snap = {
-      vision: blueprint.vision || "",
-      mission: blueprint.mission || "",
-      long_term_goal: blueprint.long_term_goal || "",
-    };
-    setForm(snap);
-    setSavedForm(snap);
-  }, [blueprint]);
+  useBlueprintSync(blueprint, snapshotFromBlueprint, setForm, setSavedForm, savedForm);
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
 

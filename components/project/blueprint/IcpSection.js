@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SectionCard, SaveIndicator, inputCls, labelCls } from "./ui";
 import { useAutoSave } from "./useAutoSave";
+import { useBlueprintSync } from "./blueprintFormSync";
 import { DEFAULT_ICP } from "@/lib/productBlueprint/constants";
 import { patchBlueprint } from "@/lib/productBlueprint/clientApi";
 
@@ -19,12 +20,13 @@ export default function IcpSection({ projectId, blueprint, onUpdate }) {
   const [icp, setIcp] = useState(DEFAULT_ICP);
   const [savedIcp, setSavedIcp] = useState(DEFAULT_ICP);
 
-  useEffect(() => {
-    if (!blueprint) return;
-    const snap = { ...DEFAULT_ICP, ...(blueprint.ideal_customer_profile || {}) };
-    setIcp(snap);
-    setSavedIcp(snap);
-  }, [blueprint]);
+  useBlueprintSync(
+    blueprint,
+    useCallback((bp) => ({ ...DEFAULT_ICP, ...(bp.ideal_customer_profile || {}) }), []),
+    setIcp,
+    setSavedIcp,
+    savedIcp
+  );
 
   const isDirty = JSON.stringify(icp) !== JSON.stringify(savedIcp);
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SectionCard, SaveIndicator, textareaCls, labelCls } from "./ui";
 import { useAutoSave } from "./useAutoSave";
+import { useBlueprintSync } from "./blueprintFormSync";
 import { MONETIZATION_MODELS, DEFAULT_MONETIZATION } from "@/lib/productBlueprint/constants";
 import { patchBlueprint } from "@/lib/productBlueprint/clientApi";
 
@@ -10,12 +11,13 @@ export default function MonetizationSection({ projectId, blueprint, onUpdate }) 
   const [data, setData] = useState(DEFAULT_MONETIZATION);
   const [savedData, setSavedData] = useState(DEFAULT_MONETIZATION);
 
-  useEffect(() => {
-    if (!blueprint) return;
-    const snap = { ...DEFAULT_MONETIZATION, ...(blueprint.monetization_model || {}) };
-    setData(snap);
-    setSavedData(snap);
-  }, [blueprint]);
+  useBlueprintSync(
+    blueprint,
+    useCallback((bp) => ({ ...DEFAULT_MONETIZATION, ...(bp.monetization_model || {}) }), []),
+    setData,
+    setSavedData,
+    savedData
+  );
 
   const isDirty = JSON.stringify(data) !== JSON.stringify(savedData);
 

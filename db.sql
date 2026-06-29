@@ -914,3 +914,50 @@ create table project_slogans (
 create index idx_project_slogans_project_id on project_slogans(project_id);
 create index idx_project_slogans_favorited on project_slogans(project_id, is_favorited desc, sort_order);
 
+-- =========================
+-- Telegram AI COO Bot
+-- =========================
+
+create table telegram_chat_history (
+  id uuid primary key default gen_random_uuid(),
+  telegram_user_id bigint not null,
+  role text not null check (role in ('user', 'assistant', 'system')),
+  message text not null default '',
+  project_id uuid references projects(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index idx_telegram_chat_history_user_created
+  on telegram_chat_history(telegram_user_id, created_at desc);
+
+create index idx_telegram_chat_history_project
+  on telegram_chat_history(project_id) where project_id is not null;
+
+create table telegram_sessions (
+  id uuid primary key default gen_random_uuid(),
+  telegram_user_id bigint not null unique,
+  current_project_id uuid references projects(id) on delete set null,
+  last_context jsonb not null default '{}'::jsonb,
+  last_message_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create index idx_telegram_sessions_project
+  on telegram_sessions(current_project_id) where current_project_id is not null;
+
+create table telegram_ai_logs (
+  id uuid primary key default gen_random_uuid(),
+  telegram_user_id bigint,
+  action text not null default '',
+  intent text default '',
+  token_usage integer default 0,
+  response_time_ms integer default 0,
+  created_at timestamptz not null default now()
+);
+
+create index idx_telegram_ai_logs_created
+  on telegram_ai_logs(created_at desc);
+
+create index idx_telegram_ai_logs_action
+  on telegram_ai_logs(action, created_at desc);
+

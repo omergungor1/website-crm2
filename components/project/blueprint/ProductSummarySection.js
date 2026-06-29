@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SectionCard, SaveIndicator, inputCls, textareaCls, labelCls } from "./ui";
 import { useAutoSave } from "./useAutoSave";
+import { useBlueprintSync } from "./blueprintFormSync";
 import { patchBlueprint } from "@/lib/productBlueprint/clientApi";
 
 function snapshotFromBlueprint(blueprint) {
@@ -16,12 +17,7 @@ export default function ProductSummarySection({ projectId, projectName, blueprin
   const [form, setForm] = useState({ short_description: "", elevator_pitch: "" });
   const [savedForm, setSavedForm] = useState({ short_description: "", elevator_pitch: "" });
 
-  useEffect(() => {
-    if (!blueprint) return;
-    const snap = snapshotFromBlueprint(blueprint);
-    setForm(snap);
-    setSavedForm(snap);
-  }, [blueprint]);
+  useBlueprintSync(blueprint, snapshotFromBlueprint, setForm, setSavedForm, savedForm);
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(savedForm);
 

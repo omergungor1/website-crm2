@@ -74,18 +74,18 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* <div className="min-w-0">
+        <div className="min-w-0">
           <h1 className="truncate text-xl font-bold text-zinc-900 dark:text-zinc-50">{project.name}</h1>
           {project.description && (
             <p className="text-sm text-zinc-500 line-clamp-2">{project.description}</p>
           )}
-        </div> */}
+        </div>
       </div>
 
       <div className="flex gap-3 sm:gap-5">
         <aside className="w-[3.25rem] shrink-0 sm:w-52">
           <nav
-            className="sticky top-4 flex flex-col gap-0.5 rounded-xl border border-zinc-200 bg-white p-1 sm:p-1.5 dark:border-zinc-700 dark:bg-zinc-900"
+            className="sticky top-[calc(var(--dashboard-header-height)+1rem)] flex flex-col gap-0.5 rounded-xl border border-zinc-200 bg-white p-1 sm:p-1.5 dark:border-zinc-700 dark:bg-zinc-900"
             aria-label="Proje menüsü"
           >
             {tabs.map((tab) => {

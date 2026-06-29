@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node scripts/setup-telegram-webhook.js",
     "start": "next start",
     "lint": "eslint"
   },

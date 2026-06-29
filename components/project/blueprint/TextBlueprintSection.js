@@ -1,20 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { SectionCard, SaveIndicator, textareaCls } from "./ui";
 import { useAutoSave } from "./useAutoSave";
+import { useBlueprintSync } from "./blueprintFormSync";
 import { patchBlueprint } from "@/lib/productBlueprint/clientApi";
 
 export default function TextBlueprintSection({ projectId, blueprint, onUpdate, title, description, field }) {
   const [value, setValue] = useState("");
   const [savedValue, setSavedValue] = useState("");
 
-  useEffect(() => {
-    if (!blueprint) return;
-    const v = blueprint[field] || "";
-    setValue(v);
-    setSavedValue(v);
-  }, [blueprint, field]);
+  useBlueprintSync(
+    blueprint,
+    useCallback((bp) => bp[field] || "", [field]),
+    setValue,
+    setSavedValue,
+    savedValue
+  );
 
   const isDirty = value !== savedValue;
 
