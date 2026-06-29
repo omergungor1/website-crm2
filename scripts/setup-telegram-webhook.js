@@ -1,20 +1,25 @@
 /**
- * Vercel build sonrası Telegram webhook'unu otomatik kurar.
- * TELEGRAM_AUTO_SETUP=true ve gerekli env'ler tanımlı olmalı.
+ * Telegram webhook kurulumu (manuel veya deploy hook ile çalıştır).
+ * Build aşamasında ÇALIŞTIRILMAMALI — Vercel derlemesini kırmaması için
+ * package.json postbuild'ten çıkarıldı.
+ *
+ * Kullanım: npm run telegram:setup
+ * veya deploy sonrası: POST /api/telegram/setup
  */
 async function main() {
-  if (process.env.TELEGRAM_AUTO_SETUP !== "true") {
-    console.log("[telegram-setup] TELEGRAM_AUTO_SETUP aktif değil, atlanıyor.");
+  if (process.env.TELEGRAM_AUTO_SETUP === "false") {
+    console.log("[telegram-setup] TELEGRAM_AUTO_SETUP=false, atlanıyor.");
     return;
   }
 
-  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
   const allowedUserId = process.env.TELEGRAM_ALLOWED_USER_ID;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ||
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
 
   if (!token || !allowedUserId || !appUrl) {
-    console.warn("[telegram-setup] Eksik env, webhook kurulmadı.");
+    console.warn("[telegram-setup] Eksik env (TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USER_ID, NEXT_PUBLIC_APP_URL).");
     return;
   }
 
@@ -33,13 +38,17 @@ async function main() {
   const data = await res.json();
   if (data.ok) {
     console.log("[telegram-setup] Webhook kuruldu:", webhookUrl);
-  } else {
-    console.error("[telegram-setup] Hata:", data.description);
-    process.exit(1);
+    return;
   }
+
+  console.error("[telegram-setup] Telegram hatası:", data.description);
+  if (data.description === "Not Found") {
+    console.error("[telegram-setup] 'Not Found' genelde geçersiz TELEGRAM_BOT_TOKEN demektir. @BotFather token'ını kontrol et.");
+  }
+  process.exitCode = 1;
 }
 
 main().catch((err) => {
-  console.error("[telegram-setup]", err);
-  process.exit(1);
+  console.error("[telegram-setup]", err.message || err);
+  process.exitCode = 1;
 });
