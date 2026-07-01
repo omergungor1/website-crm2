@@ -961,3 +961,17 @@ create index idx_telegram_ai_logs_created
 create index idx_telegram_ai_logs_action
   on telegram_ai_logs(action, created_at desc);
 
+-- =========================
+-- Kullanıcı RoadMap Canvas
+-- =========================
+
+create table user_roadmaps (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+
+  -- { viewport: { scrollX, scrollY }, nodes: [...], edges: [...] }
+  canvas_data jsonb not null default '{"viewport":{"scrollX":0,"scrollY":0},"nodes":[],"edges":[]}'::jsonb,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+

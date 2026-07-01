@@ -31,6 +31,14 @@ function DeepWorkIcon({ className }) {
   );
 }
 
+function RoadmapIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V9.5h16V18zm0-10.5H4V6h16v1.5zM6.5 15.5h3v-3h-3v3zm0-4h3v-3h-3v3zm4 4h3v-3h-3v3zm0-4h3v-3h-3v3zm4 4h3v-3h-3v3zm0-4h3v-3h-3v3z" />
+    </svg>
+  );
+}
+
 function CallIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
@@ -41,8 +49,8 @@ function CallIcon({ className }) {
 
 function navLinkClass(active) {
   return `flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-3 ${active
-      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
     }`;
 }
 
@@ -54,8 +62,10 @@ export default function DashboardHeader({ user, admin = false }) {
   const showProjectSwitcher = pathname?.startsWith("/projects/");
 
   const isDeepWorkActive = pathname?.startsWith("/dashboard/deep-work");
+  const isRoadmapActive = pathname?.startsWith("/dashboard/roadmap");
   const isProjectsActive =
     !isDeepWorkActive &&
+    !isRoadmapActive &&
     (pathname === "/dashboard" ||
       pathname?.startsWith("/dashboard/") ||
       pathname?.startsWith("/projects/"));
@@ -112,6 +122,23 @@ export default function DashboardHeader({ user, admin = false }) {
             </span>
           </Link>
 
+
+          {showProjectSwitcher && (
+            <Suspense
+              fallback={
+                <select
+                  disabled
+                  className="min-w-0 max-w-[9rem] truncate rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1.5 text-xs text-zinc-400 sm:max-w-[14rem] sm:text-sm dark:border-zinc-700 dark:bg-zinc-800"
+                  aria-label="Proje seç"
+                >
+                  <option>Yükleniyor…</option>
+                </select>
+              }
+            >
+              <ProjectSwitcher />
+            </Suspense>
+          )}
+
           <nav className="flex shrink-0 items-center gap-1 border-l border-zinc-200 pl-2 dark:border-zinc-700 sm:pl-3">
             <Link
               href="/dashboard"
@@ -131,6 +158,15 @@ export default function DashboardHeader({ user, admin = false }) {
               <DeepWorkIcon className="h-4 w-4 shrink-0" />
               <span className="hidden sm:inline">Deep Work</span>
             </Link>
+            <Link
+              href="/dashboard/roadmap"
+              className={navLinkClass(isRoadmapActive)}
+              title="RoadMap"
+              onClick={() => setUserMenuOpen(false)}
+            >
+              <RoadmapIcon className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">RoadMap</span>
+            </Link>
             {admin && (
               <Link
                 href="/crm"
@@ -143,22 +179,6 @@ export default function DashboardHeader({ user, admin = false }) {
               </Link>
             )}
           </nav>
-
-          {showProjectSwitcher && (
-            <Suspense
-              fallback={
-                <select
-                  disabled
-                  className="min-w-0 max-w-[9rem] truncate rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1.5 text-xs text-zinc-400 sm:max-w-[14rem] sm:text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                  aria-label="Proje seç"
-                >
-                  <option>Yükleniyor…</option>
-                </select>
-              }
-            >
-              <ProjectSwitcher />
-            </Suspense>
-          )}
         </div>
 
         {user && (
