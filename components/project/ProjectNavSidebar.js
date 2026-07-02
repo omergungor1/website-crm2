@@ -34,6 +34,12 @@ function TabIcon({ tabKey, className }) {
           <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
         </svg>
       );
+    case "roadmap":
+      return (
+        <svg {...props}>
+          <path d="M4 6h2v12H4V6zm4 3h2v9H8V9zm4-5h2v14h-2V4zm4 4h2v10h-2V8z" />
+        </svg>
+      );
     case "mvp-features":
       return (
         <svg {...props}>
@@ -140,6 +146,7 @@ const ALL_TABS = [
   { key: "slogans", label: "Slogan & Metin" },
   { key: "prompt", label: "Prompt" },
   { key: "todo-list", label: "Todo List" },
+  { key: "roadmap", label: "Roadmap" },
   { key: "mvp-features", label: "MVP Features", projectTypes: ["saas", "mobile_app"] },
   { key: "installation", label: "Kurulum Formu", projectTypes: ["landing_page"] },
   { key: "updates", label: "Güncellemeler" },

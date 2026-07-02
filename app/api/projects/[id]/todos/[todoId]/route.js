@@ -45,6 +45,7 @@ export async function PATCH(request, { params }) {
         .select("sort_order")
         .eq("project_id", projectId)
         .eq("is_archived", false)
+        .eq("is_deleted", false)
         .neq("id", todoId)
         .order("sort_order", { ascending: false })
         .limit(1)
@@ -70,6 +71,7 @@ export async function PATCH(request, { params }) {
     .update(updates)
     .eq("id", todoId)
     .eq("project_id", projectId)
+    .eq("is_deleted", false)
     .select()
     .single();
 
@@ -87,12 +89,17 @@ export async function DELETE(request, { params }) {
   const { allowed } = await getProjectAccess(supabase, user, admin, projectId);
   if (!allowed) return NextResponse.json({ error: "Erişim yok" }, { status: 403 });
 
-  const { error } = await supabase
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
     .from("project_todos")
-    .delete()
+    .update({ is_deleted: true, deleted_at: now, updated_at: now })
     .eq("id", todoId)
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .eq("is_deleted", false)
+    .select("id")
+    .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Todo bulunamadı" }, { status: 404 });
   return NextResponse.json({ success: true });
 }

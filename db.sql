@@ -35,13 +35,20 @@ create table project_todos (
 
   color text check (color is null or color in ('blue','amber','rose')),
   is_archived boolean default false,
+  is_deleted boolean not null default false,
+  deleted_at timestamptz,
 
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
+-- Mevcut veritabanı için (bir kez):
+-- alter table project_todos add column if not exists is_deleted boolean not null default false;
+-- alter table project_todos add column if not exists deleted_at timestamptz;
+
 create index idx_project_todos_project_id on project_todos(project_id);
 create index idx_project_todos_project_sort on project_todos(project_id, sort_order);
+create index idx_project_todos_active on project_todos(project_id) where is_deleted = false;
 
 create table project_mvp_features (
   id uuid primary key default uuid_generate_v4(),
@@ -964,14 +971,44 @@ create index idx_telegram_ai_logs_action
 -- =========================
 -- Kullanıcı RoadMap Canvas
 -- =========================
+-- Supabase Table Editor'de default alanına SADECE ham JSON yapıştırın (tırnak ve ::jsonb YOK):
+-- {"viewport":{"scrollX":0,"scrollY":0},"nodes":[],"edges":[],"annotations":[]}
+-- Mevcut tabloda default güncellemek için aşağıdaki "RoadMap migration" bölümünü SQL Editor'de çalıştırın.
 
 create table user_roadmaps (
   user_id uuid primary key references auth.users(id) on delete cascade,
 
-  -- { viewport: { scrollX, scrollY }, nodes: [...], edges: [...] }
-  canvas_data jsonb not null default '{"viewport":{"scrollX":0,"scrollY":0},"nodes":[],"edges":[]}'::jsonb,
+  canvas_data jsonb not null default '{"viewport":{"scrollX":0,"scrollY":0},"nodes":[],"edges":[],"annotations":[]}'::jsonb,
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- =========================
+-- Proje RoadMap Canvas
+-- =========================
+
+create table project_roadmaps (
+  project_id uuid primary key references projects(id) on delete cascade,
+
+  -- { viewport: { scrollX, scrollY }, nodes: [...], edges: [...], annotations: [...] }
+  canvas_data jsonb not null default '{"viewport":{"scrollX":0,"scrollY":0},"nodes":[],"edges":[],"annotations":[]}'::jsonb,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_project_roadmaps_updated_at on project_roadmaps(updated_at desc);
+
+-- =========================
+-- RoadMap migration (mevcut tablolar için — SQL Editor'de çalıştırın)
+-- Tabloda kayıt varken Table Editor default alanı hata verebilir; bu blok güvenlidir.
+-- Mevcut satırlar değişmez; yalnızca yeni kayıtların varsayılanı güncellenir.
+-- =========================
+
+-- alter table user_roadmaps
+--   alter column canvas_data set default '{"viewport":{"scrollX":0,"scrollY":0},"nodes":[],"edges":[],"annotations":[]}'::jsonb;
+
+-- alter table project_roadmaps
+--   alter column canvas_data set default '{"viewport":{"scrollX":0,"scrollY":0},"nodes":[],"edges":[],"annotations":[]}'::jsonb;
 

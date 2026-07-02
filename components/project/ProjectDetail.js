@@ -22,6 +22,7 @@ import NameFinderTab from "@/components/project/NameFinderTab";
 import SlogansTab from "@/components/project/SlogansTab";
 import ProjectMetaFilters from "@/components/project/ProjectMetaFilters";
 import { getTabsForProjectType, TabIcon, DEFAULT_PROJECT_TAB } from "@/components/project/ProjectNavSidebar";
+import RoadmapShell from "@/components/roadmap/RoadmapShell";
 
 export default function ProjectDetail({ project, isAdmin, currentUserId }) {
   const router = useRouter();
@@ -40,14 +41,15 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
 
   const publicToken = project.installation_forms?.[0]?.public_token;
   const isSchemaPlanner = activeTab === "db-schema-planner";
+  const isRoadmap = activeTab === "roadmap";
 
   useEffect(() => {
-    if (!isSchemaPlanner) return;
+    if (!isSchemaPlanner && !isRoadmap) return;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isSchemaPlanner]);
+  }, [isSchemaPlanner, isRoadmap]);
 
   useEffect(() => {
     if (tabParam && !validTabKeys.includes(tabParam)) {
@@ -56,6 +58,18 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
       router.replace(`?${params.toString()}`, { scroll: false });
     }
   }, [tabParam, validTabKeys, searchParams, router]);
+
+  if (isRoadmap) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-white dark:bg-zinc-950">
+        <RoadmapShell
+          projectId={project.id}
+          projectName={project.name}
+          onBack={() => setActiveTab(DEFAULT_PROJECT_TAB)}
+        />
+      </div>
+    );
+  }
 
   if (isSchemaPlanner) {
     return (

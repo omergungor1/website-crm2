@@ -11,6 +11,7 @@ const STATUS_LABEL = {
 
 const QUICK_LINKS = [
   "todo-list",
+  "roadmap",
   "mvp-features",
   "installation",
   "domain",

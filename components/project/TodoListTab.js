@@ -44,7 +44,7 @@ function ColorPicker({ value, onChange, size = "md" }) {
   );
 }
 
-function TodoRowActions({ todo, onColorChange, onClearColor, onArchive, onUnarchive }) {
+function TodoRowActions({ todo, onColorChange, onClearColor, onArchive, onUnarchive, onEdit, onDelete }) {
   return (
     <div className="ml-auto flex h-7 shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
         {TODO_COLORS.map((color) => (
@@ -97,6 +97,145 @@ function TodoRowActions({ todo, onColorChange, onClearColor, onArchive, onUnarch
             </svg>
           </button>
         )}
+        <button
+          type="button"
+          title="Düzenle"
+          aria-label="Düzenle"
+          onClick={() => onEdit(todo)}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          title="Sil"
+          aria-label="Sil"
+          onClick={() => onDelete(todo)}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+          </svg>
+        </button>
+    </div>
+  );
+}
+
+function TodoEditModal({ todo, saving, onClose, onSave }) {
+  const [title, setTitle] = useState("");
+  const [color, setColor] = useState(null);
+
+  useEffect(() => {
+    if (todo) {
+      setTitle(todo.title);
+      setColor(todo.color || null);
+    }
+  }, [todo]);
+
+  if (!todo) return null;
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    onSave({ title: trimmed, color });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Todo Düzenle</h2>
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-zinc-500">Başlık</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-xs font-medium text-zinc-500">Renk</label>
+            <ColorPicker value={color} onChange={setColor} />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 dark:border-zinc-600 dark:text-zinc-300"
+            >
+              İptal
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !title.trim()}
+              className="rounded-lg bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              {saving ? "Kaydediliyor…" : "Kaydet"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TodoDeleteConfirmModal({ todo, deleting, onClose, onConfirm }) {
+  if (!todo) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="todo-delete-title"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+            </svg>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 id="todo-delete-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+              Todo silinsin mi?
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Bu işlem geri alınamaz. Todo listeden kaldırılacak.
+            </p>
+            <p className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100">
+              {todo.title}
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            İptal
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-60"
+          >
+            {deleting ? "Siliniyor…" : "Evet, sil"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -112,9 +251,14 @@ export default function TodoListTab({ projectId }) {
   const [overIndex, setOverIndex] = useState(null);
   const [reordering, setReordering] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [editingTodo, setEditingTodo] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [deletingTodo, setDeletingTodo] = useState(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
-  const activeTodos = useMemo(() => todos.filter((t) => !t.is_archived), [todos]);
-  const archivedTodos = useMemo(() => todos.filter((t) => t.is_archived), [todos]);
+  const visibleTodos = useMemo(() => todos.filter((t) => !t.is_deleted), [todos]);
+  const activeTodos = useMemo(() => visibleTodos.filter((t) => !t.is_archived), [visibleTodos]);
+  const archivedTodos = useMemo(() => visibleTodos.filter((t) => t.is_archived), [visibleTodos]);
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}/todos`)
@@ -227,6 +371,40 @@ export default function TodoListTab({ projectId }) {
     } catch (err) {
       setTodos((prev) => prev.map((t) => (t.id === todo.id ? { ...t, is_archived: true } : t)));
       setError(err.message);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deletingTodo || deleteSaving) return;
+    const todo = deletingTodo;
+    setDeleteSaving(true);
+    setError("");
+    setTodos((prev) => prev.filter((t) => t.id !== todo.id));
+    try {
+      const res = await fetch(`/api/projects/${projectId}/todos/${todo.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Silinemedi");
+      setDeletingTodo(null);
+    } catch (err) {
+      setTodos((prev) => [...prev, todo]);
+      setError(err.message);
+    } finally {
+      setDeleteSaving(false);
+    }
+  }
+
+  async function handleEditSave(payload) {
+    if (!editingTodo) return;
+    setEditSaving(true);
+    setError("");
+    try {
+      const updated = await patchTodo(editingTodo.id, payload);
+      replaceTodo(updated);
+      setEditingTodo(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -355,6 +533,8 @@ export default function TodoListTab({ projectId }) {
           onClearColor={handleClearColor}
           onArchive={handleArchive}
           onUnarchive={handleUnarchive}
+          onEdit={setEditingTodo}
+          onDelete={setDeletingTodo}
         />
       </li>
     );
@@ -441,6 +621,18 @@ export default function TodoListTab({ projectId }) {
           )}
         </div>
       )}
+      <TodoEditModal
+        todo={editingTodo}
+        saving={editSaving}
+        onClose={() => setEditingTodo(null)}
+        onSave={handleEditSave}
+      />
+      <TodoDeleteConfirmModal
+        todo={deletingTodo}
+        deleting={deleteSaving}
+        onClose={() => !deleteSaving && setDeletingTodo(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

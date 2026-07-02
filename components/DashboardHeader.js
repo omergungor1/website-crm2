@@ -123,22 +123,6 @@ export default function DashboardHeader({ user, admin = false }) {
           </Link>
 
 
-          {showProjectSwitcher && (
-            <Suspense
-              fallback={
-                <select
-                  disabled
-                  className="min-w-0 max-w-[9rem] truncate rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1.5 text-xs text-zinc-400 sm:max-w-[14rem] sm:text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                  aria-label="Proje seç"
-                >
-                  <option>Yükleniyor…</option>
-                </select>
-              }
-            >
-              <ProjectSwitcher />
-            </Suspense>
-          )}
-
           <nav className="flex shrink-0 items-center gap-1 border-l border-zinc-200 pl-2 dark:border-zinc-700 sm:pl-3">
             <Link
               href="/dashboard"
@@ -180,6 +164,25 @@ export default function DashboardHeader({ user, admin = false }) {
             )}
           </nav>
         </div>
+
+
+
+
+        {showProjectSwitcher && (
+          <Suspense
+            fallback={
+              <select
+                disabled
+                className="min-w-0 max-w-[9rem] truncate rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1.5 text-xs text-zinc-400 sm:max-w-[14rem] sm:text-sm dark:border-zinc-700 dark:bg-zinc-800"
+                aria-label="Proje seç"
+              >
+                <option>Yükleniyor…</option>
+              </select>
+            }
+          >
+            <ProjectSwitcher />
+          </Suspense>
+        )}
 
         {user && (
           <div ref={menuRef} className="relative shrink-0">
