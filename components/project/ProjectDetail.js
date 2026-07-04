@@ -21,7 +21,10 @@ import ProductBlueprintTab from "@/components/project/ProductBlueprintTab";
 import NameFinderTab from "@/components/project/NameFinderTab";
 import SlogansTab from "@/components/project/SlogansTab";
 import ProjectMetaFilters from "@/components/project/ProjectMetaFilters";
-import { getTabsForProjectType, TabIcon, DEFAULT_PROJECT_TAB } from "@/components/project/ProjectNavSidebar";
+import ProjectNavSidebar, {
+  getTabsForProjectType,
+  DEFAULT_PROJECT_TAB,
+} from "@/components/project/ProjectNavSidebar";
 import RoadmapShell from "@/components/roadmap/RoadmapShell";
 
 export default function ProjectDetail({ project, isAdmin, currentUserId }) {
@@ -97,32 +100,11 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
       </div>
 
       <div className="flex gap-3 sm:gap-5">
-        <aside className="w-[3.25rem] shrink-0 sm:w-52">
-          <nav
-            className="sticky top-[calc(var(--dashboard-header-height)+1rem)] flex flex-col gap-0.5 rounded-xl border border-zinc-200 bg-white p-1 sm:p-1.5 dark:border-zinc-700 dark:bg-zinc-900"
-            aria-label="Proje menüsü"
-          >
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  title={tab.label}
-                  aria-current={isActive ? "page" : undefined}
-                  className={`flex items-center gap-2.5 rounded-lg px-2 py-2 transition-colors sm:px-3 sm:py-2.5 ${isActive
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                    }`}
-                >
-                  <TabIcon tabKey={tab.key} className="mx-auto h-5 w-5 shrink-0 sm:mx-0" />
-                  <span className="hidden truncate text-sm font-medium sm:inline">{tab.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+        <ProjectNavSidebar
+          activeTab={activeTab}
+          onNavigate={setActiveTab}
+          projectType={projectType}
+        />
 
         <main className="min-w-0 flex-1 pb-24">
           {activeTab === "overview" && (

@@ -10,7 +10,7 @@ function shapeClass(shape) {
   return "rounded-xl";
 }
 
-export default function RoadmapNodeBox({ node, onDoubleClick }) {
+export default function RoadmapNodeBox({ node, selected = false, onDoubleClick }) {
   const def = getNodeTypeDef(node.type);
   const innerRotate = def.shape === "diamond" ? "-rotate-45" : "";
   const titleSize = getTitleFontSize(node.title, node.width);
@@ -37,10 +37,12 @@ export default function RoadmapNodeBox({ node, onDoubleClick }) {
       ) : null}
 
       <div
-        className={`relative flex h-full w-full flex-col items-center justify-center border-2 px-2.5 py-2 shadow-md ${shapeClass(def.shape)} ${innerRotate}`}
+        className={`relative flex h-full w-full flex-col items-center justify-center border-2 px-2.5 py-2 shadow-md ${shapeClass(def.shape)} ${innerRotate} ${
+          selected ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-zinc-950" : ""
+        }`}
         style={{
           backgroundColor: `${node.color}18`,
-          borderColor: node.color,
+          borderColor: selected ? "#6366f1" : node.color,
         }}
         onDoubleClick={onDoubleClick}
       >

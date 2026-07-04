@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 function TabIcon({ tabKey, className }) {
   const props = { className, viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": true };
 
@@ -125,9 +127,22 @@ function TabIcon({ tabKey, className }) {
         </svg>
       );
     case "marketing":
+    case "marketing-group":
       return (
         <svg {...props}>
-          <path d="M18 11v2h4v-2h-4zm-2 6.61c.96.71 2.21 1.65 3.2 2.39.4-.53.8-1.07 1.2-1.6-.99-.74-2.24-1.68-3.2-2.4-.4.54-.8 1.08-1.2 1.61zM20.4 5.6c-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4zM4 9H0v2h4V9zm0 6h4v-2H4v2zM9 4V0H7v4h2zm6 0V0h-2v4h2zM7 20v4h2v-4H7zm6 0v4h2v-4h-2zM4.6 5.6c.4.53.8 1.07 1.2 1.6.96-.72 2.21-1.65 3.2-2.4-.4-.53-.8-1.07-1.2-1.6-.99.74-2.24 1.68-3.2 2.4z" />
+          <path d="M12 8H4c-1.1 0-2 .9-2 2v4c0 1.1.9 2 2 2h1v3c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-3h1l5 3V5l-5 3zm9.5 4c0 1.71-.96 3.26-2.5 4.03v-8.06c1.54.77 2.5 2.32 2.5 4.03zM14 5.08v13.84c2.87-.86 5-3.54 5-6.92s-2.13-6.06-5-6.92z" />
+        </svg>
+      );
+    case "brand":
+      return (
+        <svg {...props}>
+          <path d="M12 2l2.4 7.2H22l-6 4.8 2.3 7L12 16.8 5.7 21l2.3-7-6-4.8h7.6L12 2z" />
+        </svg>
+      );
+    case "tech":
+      return (
+        <svg {...props}>
+          <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z" />
         </svg>
       );
     default:
@@ -139,36 +154,233 @@ function TabIcon({ tabKey, className }) {
   }
 }
 
-const ALL_TABS = [
+const MENU_ITEMS = [
   { key: "overview", label: "Ana Sayfa" },
-  { key: "blueprint", label: "Blueprint" },
-  { key: "name-finder", label: "İsim Bul" },
-  { key: "slogans", label: "Slogan & Metin" },
-  { key: "prompt", label: "Prompt" },
   { key: "todo-list", label: "Todo List" },
   { key: "roadmap", label: "Roadmap" },
-  { key: "mvp-features", label: "MVP Features", projectTypes: ["saas", "mobile_app"] },
-  { key: "installation", label: "Kurulum Formu", projectTypes: ["landing_page"] },
-  { key: "updates", label: "Güncellemeler" },
-  { key: "domain", label: "Domain" },
-  { key: "pages", label: "Sayfalar" },
-  { key: "marketing", label: "Pazarlama" },
-  { key: "keyword-explorer", label: "Keyword Explorer" },
-  { key: "logo", label: "Logo" },
-  { key: "copyfast", label: "CopyFast" },
-  { key: "ai-title-generator", label: "AI Title" },
-  { key: "db-schema-planner", label: "DB Schema" },
-  { key: "blog", label: "Blog" },
-  { key: "messages", label: "Mesajlar" },
+  {
+    key: "brand",
+    label: "Marka Kiti",
+    children: [
+      { key: "slogans", label: "Slogan & Metin" },
+      { key: "name-finder", label: "İsim Bul" },
+      { key: "domain", label: "Domain" },
+      { key: "keyword-explorer", label: "Keyword Explorer" },
+      { key: "logo", label: "Logo" },
+      { key: "ai-title-generator", label: "AI Title" },
+    ],
+  },
+  {
+    key: "tech",
+    label: "Teknik / Kurulum",
+    children: [
+      { key: "blueprint", label: "Blueprint" },
+      { key: "prompt", label: "Prompt" },
+      { key: "mvp-features", label: "MVP Features", projectTypes: ["saas", "mobile_app"] },
+      { key: "installation", label: "Kurulum Formu", projectTypes: ["landing_page"] },
+      { key: "updates", label: "Güncellemeler" },
+      { key: "pages", label: "Sayfalar" },
+      { key: "db-schema-planner", label: "DB Schema" },
+      { key: "copyfast", label: "CopyFast" },
+    ],
+  },
+  {
+    key: "marketing-group",
+    label: "Marketing",
+    children: [
+      { key: "marketing", label: "Pazarlama" },
+      { key: "blog", label: "Blog" },
+    ],
+  },
+  // { key: "messages", label: "Mesajlar" },
   { key: "settings", label: "Ayarlar" },
 ];
 
+function isTabVisible(tab, projectType) {
+  return !tab.projectTypes || tab.projectTypes.includes(projectType);
+}
+
+function flattenTabs(items) {
+  const tabs = [];
+  for (const item of items) {
+    if (item.children) tabs.push(...item.children);
+    else tabs.push(item);
+  }
+  return tabs;
+}
+
+function getMenuForProjectType(projectType = "landing_page") {
+  return MENU_ITEMS.map((item) => {
+    if (!item.children) {
+      return isTabVisible(item, projectType) ? item : null;
+    }
+    const children = item.children.filter((child) => isTabVisible(child, projectType));
+    if (children.length === 0) return null;
+    return { ...item, children };
+  }).filter(Boolean);
+}
+
 function getTabsForProjectType(projectType = "landing_page") {
-  return ALL_TABS.filter(
-    (tab) => !tab.projectTypes || tab.projectTypes.includes(projectType)
+  return flattenTabs(getMenuForProjectType(projectType));
+}
+
+const ALL_TABS = flattenTabs(MENU_ITEMS);
+const DEFAULT_PROJECT_TAB = "overview";
+
+const itemClass = (active) =>
+  `flex w-full items-center gap-2.5 rounded-lg px-2 py-2 transition-colors sm:px-3 sm:py-2.5 ${active
+    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+  }`;
+
+const childClass = (active) =>
+  `flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors sm:px-3 sm:py-2 ${active
+    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+  }`;
+
+function NavLeaf({ tab, activeTab, onNavigate }) {
+  const isActive = activeTab === tab.key;
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate(tab.key)}
+      title={tab.label}
+      aria-current={isActive ? "page" : undefined}
+      className={itemClass(isActive)}
+    >
+      <TabIcon tabKey={tab.key} className="mx-auto h-5 w-5 shrink-0 sm:mx-0" />
+      <span className="hidden truncate text-sm font-medium sm:inline">{tab.label}</span>
+    </button>
   );
 }
 
-const DEFAULT_PROJECT_TAB = "overview";
+function NavGroup({ group, activeTab, onNavigate }) {
+  const childKeys = group.children.map((c) => c.key);
+  const hasActiveChild = childKeys.includes(activeTab);
+  const [open, setOpen] = useState(hasActiveChild);
+  const rootRef = useRef(null);
 
-export { ALL_TABS as TABS, getTabsForProjectType, TabIcon, DEFAULT_PROJECT_TAB };
+  useEffect(() => {
+    if (hasActiveChild) setOpen(true);
+  }, [hasActiveChild]);
+
+  useEffect(() => {
+    function onPointerDown(e) {
+      if (!rootRef.current?.contains(e.target) && !hasActiveChild) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [hasActiveChild]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        title={group.label}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={itemClass(hasActiveChild && !open)}
+      >
+        <TabIcon tabKey={group.key} className="mx-auto h-5 w-5 shrink-0 sm:mx-0" />
+        <span className="hidden min-w-0 flex-1 truncate text-left text-sm font-medium sm:inline">
+          {group.label}
+        </span>
+        <svg
+          className={`ml-auto hidden h-4 w-4 shrink-0 transition-transform sm:block ${open ? "rotate-90" : ""}`}
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden
+        >
+          <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+        </svg>
+      </button>
+
+      {open ? (
+        <div className="mt-0.5 hidden flex-col gap-0.5 border-l border-zinc-200 pl-2 ml-3 sm:flex dark:border-zinc-700">
+          {group.children.map((child) => {
+            const isActive = activeTab === child.key;
+            return (
+              <button
+                key={child.key}
+                type="button"
+                onClick={() => onNavigate(child.key)}
+                title={child.label}
+                aria-current={isActive ? "page" : undefined}
+                className={childClass(isActive)}
+              >
+                <TabIcon tabKey={child.key} className="h-4 w-4 shrink-0" />
+                <span className="truncate text-sm font-medium">{child.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {open ? (
+        <div
+          role="menu"
+          className="absolute left-full top-0 z-50 ml-1.5 flex min-w-[11rem] flex-col gap-0.5 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-lg sm:hidden dark:border-zinc-700 dark:bg-zinc-900"
+        >
+          <p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+            {group.label}
+          </p>
+          {group.children.map((child) => {
+            const isActive = activeTab === child.key;
+            return (
+              <button
+                key={child.key}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onNavigate(child.key);
+                  setOpen(false);
+                }}
+                className={childClass(isActive)}
+              >
+                <TabIcon tabKey={child.key} className="h-4 w-4 shrink-0" />
+                <span className="truncate text-sm font-medium">{child.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function ProjectNavSidebar({ activeTab, onNavigate, projectType = "landing_page" }) {
+  const menu = getMenuForProjectType(projectType);
+
+  return (
+    <aside className="w-[3.25rem] shrink-0 sm:w-52">
+      <nav
+        className="sticky top-[calc(var(--dashboard-header-height)+1rem)] flex flex-col gap-0.5 rounded-xl border border-zinc-200 bg-white p-1 sm:p-1.5 dark:border-zinc-700 dark:bg-zinc-900"
+        aria-label="Proje menüsü"
+      >
+        {menu.map((item) =>
+          item.children ? (
+            <NavGroup
+              key={item.key}
+              group={item}
+              activeTab={activeTab}
+              onNavigate={onNavigate}
+            />
+          ) : (
+            <NavLeaf
+              key={item.key}
+              tab={item}
+              activeTab={activeTab}
+              onNavigate={onNavigate}
+            />
+          )
+        )}
+      </nav>
+    </aside>
+  );
+}
+
+export { ALL_TABS as TABS, MENU_ITEMS, getTabsForProjectType, getMenuForProjectType, TabIcon, DEFAULT_PROJECT_TAB };

@@ -889,14 +889,14 @@ export default function TodoListTab({ projectId }) {
           className={inputCls}
           disabled={adding}
         />
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-fit shrink-0 flex-col items-stretch gap-2">
           <ColorPicker value={newColor} onChange={setNewColor} />
           <button
             type="submit"
             disabled={adding || !newTitle.trim()}
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+            className="w-full rounded-lg bg-zinc-900 px-2 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
           >
-            {adding ? "Ekleniyor…" : "Ekle"}
+            {adding ? "…" : "Ekle"}
           </button>
         </div>
       </form>

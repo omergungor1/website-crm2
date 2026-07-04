@@ -57,10 +57,58 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   const [settingsNodeId, setSettingsNodeId] = useState(null);
   const [settingsAnnotationId, setSettingsAnnotationId] = useState(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState(null);
-  const [selectedAnnotationId, setSelectedAnnotationId] = useState(null);
+  const [selectedAnnotationIds, setSelectedAnnotationIds] = useState([]);
+  const [selectedNodeIds, setSelectedNodeIds] = useState([]);
   const [hoveredLineId, setHoveredLineId] = useState(null);
   const canvasRef = useRef(null);
   const saveTimerRef = useRef(null);
+
+  function clearSelection() {
+    setSelectedNodeIds([]);
+    setSelectedAnnotationIds([]);
+    setSelectedEdgeId(null);
+  }
+
+  function buildSelectionOrigins(nodeIds, annotationIds) {
+    const nodeOrigins = {};
+    const annotationOrigins = {};
+    for (const id of nodeIds) {
+      const n = nodes.find((item) => item.id === id);
+      if (n) nodeOrigins[id] = { x: n.x, y: n.y };
+    }
+    for (const id of annotationIds) {
+      const a = annotations.find((item) => item.id === id);
+      if (!a) continue;
+      if (isLineType(a.type)) {
+        annotationOrigins[id] = { kind: "line", x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 };
+      } else {
+        annotationOrigins[id] = { kind: "box", x: a.x, y: a.y };
+      }
+    }
+    return { nodeOrigins, annotationOrigins };
+  }
+
+  function selectionMinOrigin(nodeOrigins, annotationOrigins) {
+    const xs = [];
+    const ys = [];
+    for (const o of Object.values(nodeOrigins)) {
+      xs.push(o.x);
+      ys.push(o.y);
+    }
+    for (const o of Object.values(annotationOrigins)) {
+      if (o.kind === "line") {
+        xs.push(Math.min(o.x1, o.x2));
+        ys.push(Math.min(o.y1, o.y2));
+      } else {
+        xs.push(o.x);
+        ys.push(o.y);
+      }
+    }
+    return {
+      minX: xs.length ? Math.min(...xs) : 0,
+      minY: ys.length ? Math.min(...ys) : 0,
+    };
+  }
 
   const canvasData = { viewport, nodes, edges, annotations };
   const isDirty = savedFingerprint !== canvasFingerprint(canvasData);
@@ -185,11 +233,23 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (inField) return;
 
-      if (selectedAnnotationId) {
+      if (selectedNodeIds.length > 0 || selectedAnnotationIds.length > 0) {
         e.preventDefault();
-        setAnnotations((prev) => prev.filter((a) => a.id !== selectedAnnotationId));
-        setSelectedAnnotationId(null);
-        setSettingsAnnotationId(null);
+        if (selectedNodeIds.length > 0) {
+          const ids = new Set(selectedNodeIds);
+          setNodes((prev) => prev.filter((n) => !ids.has(n.id)));
+          setEdges((prev) =>
+            prev.filter((edge) => !ids.has(edge.fromNodeId) && !ids.has(edge.toNodeId))
+          );
+          setSelectedNodeIds([]);
+          setSettingsNodeId(null);
+        }
+        if (selectedAnnotationIds.length > 0) {
+          const ids = new Set(selectedAnnotationIds);
+          setAnnotations((prev) => prev.filter((a) => !ids.has(a.id)));
+          setSelectedAnnotationIds([]);
+          setSettingsAnnotationId(null);
+        }
         return;
       }
 
@@ -201,7 +261,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedEdgeId, selectedAnnotationId, linking, saveNow]);
+  }, [selectedEdgeId, selectedAnnotationIds, selectedNodeIds, linking, saveNow]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -209,50 +269,40 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       const dx = e.clientX - dragging.startX;
       const dy = e.clientY - dragging.startY;
 
-      if (dragging.target === "node") {
-        setNodes((prev) =>
-          prev.map((n) =>
-            n.id === dragging.id
-              ? {
-                  ...n,
-                  x: Math.max(0, dragging.orig.x + dx),
-                  y: Math.max(0, dragging.orig.y + dy),
-                }
-              : n
-          )
-        );
-        return;
-      }
+      if (dragging.target === "selection") {
+        const { nodeOrigins, annotationOrigins } = dragging;
+        const { minX, minY } = selectionMinOrigin(nodeOrigins, annotationOrigins);
+        const clampedDx = Math.max(dx, -minX);
+        const clampedDy = Math.max(dy, -minY);
 
-      if (dragging.target === "annotation-box") {
-        setAnnotations((prev) =>
-          prev.map((a) =>
-            a.id === dragging.id
-              ? {
-                  ...a,
-                  x: Math.max(0, dragging.orig.x + dx),
-                  y: Math.max(0, dragging.orig.y + dy),
-                }
-              : a
-          )
-        );
-        return;
-      }
+        if (Object.keys(nodeOrigins).length > 0) {
+          setNodes((prev) =>
+            prev.map((n) => {
+              const orig = nodeOrigins[n.id];
+              if (!orig) return n;
+              return { ...n, x: orig.x + clampedDx, y: orig.y + clampedDy };
+            })
+          );
+        }
 
-      if (dragging.target === "annotation-line") {
-        setAnnotations((prev) =>
-          prev.map((a) =>
-            a.id === dragging.id
-              ? {
+        if (Object.keys(annotationOrigins).length > 0) {
+          setAnnotations((prev) =>
+            prev.map((a) => {
+              const orig = annotationOrigins[a.id];
+              if (!orig) return a;
+              if (orig.kind === "line") {
+                return {
                   ...a,
-                  x1: dragging.orig.x1 + dx,
-                  y1: dragging.orig.y1 + dy,
-                  x2: dragging.orig.x2 + dx,
-                  y2: dragging.orig.y2 + dy,
-                }
-              : a
-          )
-        );
+                  x1: orig.x1 + clampedDx,
+                  y1: orig.y1 + clampedDy,
+                  x2: orig.x2 + clampedDx,
+                  y2: orig.y2 + clampedDy,
+                };
+              }
+              return { ...a, x: orig.x + clampedDx, y: orig.y + clampedDy };
+            })
+          );
+        }
         return;
       }
 
@@ -377,8 +427,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     if (!node) return;
     setLinking({ fromNodeId: nodeId, fromAnchor: anchor });
     setLinkPointer(getAnchorPoint(node, anchor));
-    setSelectedEdgeId(null);
-    setSelectedAnnotationId(null);
+    clearSelection();
   }
 
   function startCanvasPan(e) {
@@ -397,8 +446,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     if (e.target.closest("[data-roadmap-frame-handle]")) return;
     if (e.target.closest("[data-roadmap-line-handle]")) return;
     if (e.target.closest("button")) return;
-    setSelectedEdgeId(null);
-    setSelectedAnnotationId(null);
+    clearSelection();
     const el = canvasRef.current;
     if (!el) return;
     setPanning({
@@ -414,46 +462,79 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     if (linking) return;
     if (e.target.closest("button")) return;
     e.stopPropagation();
-    setSelectedAnnotationId(null);
+    e.preventDefault();
+    setSelectedEdgeId(null);
+
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedNodeIds((prev) =>
+        prev.includes(node.id) ? prev.filter((id) => id !== node.id) : [...prev, node.id]
+      );
+      return;
+    }
+
+    let nodeIds;
+    let annotationIds;
+    if (selectedNodeIds.includes(node.id)) {
+      nodeIds = selectedNodeIds;
+      annotationIds = selectedAnnotationIds;
+    } else {
+      nodeIds = [node.id];
+      annotationIds = [];
+      setSelectedNodeIds([node.id]);
+      setSelectedAnnotationIds([]);
+    }
+
+    const { nodeOrigins, annotationOrigins } = buildSelectionOrigins(nodeIds, annotationIds);
     setDragging({
-      target: "node",
-      id: node.id,
+      target: "selection",
       startX: e.clientX,
       startY: e.clientY,
-      orig: { x: node.x, y: node.y },
+      nodeOrigins,
+      annotationOrigins,
     });
   }
 
   function startAnnotationDrag(e, ann) {
     if (linking) return;
     e.stopPropagation();
-    setSelectedAnnotationId(ann.id);
+    e.preventDefault();
     setSelectedEdgeId(null);
 
-    if (isLineType(ann.type)) {
-      setDragging({
-        target: "annotation-line",
-        id: ann.id,
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: { x1: ann.x1, y1: ann.y1, x2: ann.x2, y2: ann.y2 },
-      });
-    } else {
-      setDragging({
-        target: "annotation-box",
-        id: ann.id,
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: { x: ann.x, y: ann.y },
-      });
+    if (e.ctrlKey || e.metaKey) {
+      setSelectedAnnotationIds((prev) =>
+        prev.includes(ann.id) ? prev.filter((id) => id !== ann.id) : [...prev, ann.id]
+      );
+      return;
     }
+
+    let nodeIds;
+    let annotationIds;
+    if (selectedAnnotationIds.includes(ann.id)) {
+      nodeIds = selectedNodeIds;
+      annotationIds = selectedAnnotationIds;
+    } else {
+      nodeIds = [];
+      annotationIds = [ann.id];
+      setSelectedNodeIds([]);
+      setSelectedAnnotationIds([ann.id]);
+    }
+
+    const { nodeOrigins, annotationOrigins } = buildSelectionOrigins(nodeIds, annotationIds);
+    setDragging({
+      target: "selection",
+      startX: e.clientX,
+      startY: e.clientY,
+      nodeOrigins,
+      annotationOrigins,
+    });
   }
 
   function startLineEndpointDrag(e, ann, endpoint) {
     if (linking) return;
     e.stopPropagation();
     e.preventDefault();
-    setSelectedAnnotationId(ann.id);
+    setSelectedNodeIds([]);
+    setSelectedAnnotationIds([ann.id]);
     setSelectedEdgeId(null);
     setDragging({
       target: "annotation-line-end",
@@ -489,13 +570,14 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   function deleteNode(nodeId) {
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setEdges((prev) => prev.filter((e) => e.fromNodeId !== nodeId && e.toNodeId !== nodeId));
+    setSelectedNodeIds((prev) => prev.filter((id) => id !== nodeId));
     setSettingsNodeId(null);
   }
 
   function deleteAnnotation(annotationId) {
     setAnnotations((prev) => prev.filter((a) => a.id !== annotationId));
     setSettingsAnnotationId(null);
-    setSelectedAnnotationId(null);
+    setSelectedAnnotationIds((prev) => prev.filter((id) => id !== annotationId));
   }
 
   const linkFromAnchor = linking
@@ -514,7 +596,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         : "cursor-grab";
 
   function renderBoxAnnotation(ann) {
-    const selected = selectedAnnotationId === ann.id;
+    const selected = selectedAnnotationIds.includes(ann.id);
     return (
       <div
         key={ann.id}
@@ -542,7 +624,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }
 
   function renderFrameVisual(ann) {
-    const selected = selectedAnnotationId === ann.id;
+    const selected = selectedAnnotationIds.includes(ann.id);
     return (
       <div
         key={`frame-visual-${ann.id}`}
@@ -625,7 +707,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   function renderLineHandles(ann) {
     const show =
-      selectedAnnotationId === ann.id ||
+      selectedAnnotationIds.includes(ann.id) ||
       hoveredLineId === ann.id ||
       dragging?.id === ann.id;
     if (!show) return null;
@@ -682,7 +764,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
               <span className="truncate font-medium text-zinc-700 dark:text-zinc-200">{projectName}</span>
             ) : null}
             <p className="hidden text-zinc-500 sm:block">
-              ⌘S kaydet · Boş alan: kaydır · Çift tık: ayarlar · Node +: bağla · Delete: sil · Esc: iptal
+              ⌘S kaydet · Ctrl+tık: çoklu seç · Seçilileri sürükle · Boş alan: kaydır · Çift tık: ayarlar · Delete: sil
             </p>
           </div>
           <div className="flex items-center gap-2 text-zinc-500">
@@ -727,7 +809,8 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                       onPointerDown={(e) => {
                         e.stopPropagation();
                         setSelectedEdgeId(edge.id);
-                        setSelectedAnnotationId(null);
+                        setSelectedAnnotationIds([]);
+                        setSelectedNodeIds([]);
                         setLinking(null);
                       }}
                     />
@@ -754,7 +837,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
             <svg className="pointer-events-none absolute inset-0 z-[8] h-full w-full overflow-visible">
               {lineAnnotations.map((ann) => {
-                const selected = selectedAnnotationId === ann.id;
+                const selected = selectedAnnotationIds.includes(ann.id);
                 const path =
                   ann.type === "arrow"
                     ? buildArrowPath(ann.x1, ann.y1, ann.x2, ann.y2)
@@ -791,6 +874,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
             {nodes.map((node) => {
               const isHovered = hoveredNodeId === node.id;
+              const isSelected = selectedNodeIds.includes(node.id);
 
               return (
                 <div
@@ -804,6 +888,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                 >
                   <RoadmapNodeBox
                     node={node}
+                    selected={isSelected}
                     onDoubleClick={(e) => {
                       e.stopPropagation();
                       setSettingsNodeId(node.id);
