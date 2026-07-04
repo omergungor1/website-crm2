@@ -1,86 +1,111 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
-export default function ProjectSwitcher() {
+let cachedProjects = null;
+let projectsFetchPromise = null;
+
+function loadProjects() {
+  if (cachedProjects) return Promise.resolve(cachedProjects);
+  if (projectsFetchPromise) return projectsFetchPromise;
+
+  projectsFetchPromise = fetch("/api/projects")
+    .then((r) => r.json())
+    .then((list) => {
+      cachedProjects = Array.isArray(list) ? list : [];
+      return cachedProjects;
+    })
+    .catch(() => {
+      cachedProjects = [];
+      return cachedProjects;
+    })
+    .finally(() => {
+      projectsFetchPromise = null;
+    });
+
+  return projectsFetchPromise;
+}
+
+export default function ProjectSwitcher({ onNavigate }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const match = pathname?.match(/^\/projects\/([^/]+)/);
   const currentProjectId = match?.[1] || "";
 
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [projects, setProjects] = useState(() => cachedProjects || []);
+  const [loading, setLoading] = useState(() => !cachedProjects);
 
   useEffect(() => {
-    if (!currentProjectId) {
-      setProjects([]);
+    let cancelled = false;
+
+    if (cachedProjects) {
+      setProjects(cachedProjects);
+      setLoading(false);
       return;
     }
 
-    let cancelled = false;
     setLoading(true);
-
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then(async (list) => {
-        if (cancelled) return;
-        const items = Array.isArray(list) ? [...list] : [];
-
-        if (!items.some((p) => p.id === currentProjectId)) {
-          const res = await fetch(`/api/projects/${currentProjectId}`);
-          if (res.ok) {
-            const current = await res.json();
-            items.unshift(current);
-          }
-        }
-
+    loadProjects().then((items) => {
+      if (!cancelled) {
         setProjects(items);
-      })
-      .catch(() => {
-        if (!cancelled) setProjects([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+        setLoading(false);
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [currentProjectId]);
+  }, []);
 
-  if (!currentProjectId) return null;
+  const qs = searchParams.toString();
 
-  function handleChange(e) {
-    const newId = e.target.value;
-    if (!newId || newId === currentProjectId) return;
-
-    const qs = searchParams.toString();
-    router.push(qs ? `/projects/${newId}?${qs}` : `/projects/${newId}`);
+  function projectHref(projectId) {
+    if (currentProjectId && qs) {
+      return `/projects/${projectId}?${qs}`;
+    }
+    return `/projects/${projectId}`;
   }
 
-  const selectCls =
-    "min-w-0 max-w-[9rem] truncate rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs font-medium text-zinc-900 focus:border-zinc-400 focus:outline-none sm:max-w-[14rem] sm:px-2.5 sm:py-2 sm:text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100";
-
   return (
-    <select
-      value={currentProjectId}
-      onChange={handleChange}
-      disabled={loading || projects.length === 0}
-      className={selectCls}
-      aria-label="Proje seç"
-    >
+    <div className="max-h-72 overflow-y-auto py-1">
+      <Link
+        href="/dashboard"
+        onClick={onNavigate}
+        className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${pathname === "/dashboard"
+            ? "bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+            : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          }`}
+      >
+        Ana Sayfa
+      </Link>
+
+      <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+
       {loading && projects.length === 0 ? (
-        <option value={currentProjectId}>Yükleniyor…</option>
+        <p className="px-3 py-2 text-sm text-zinc-400">Yükleniyor…</p>
+      ) : projects.length === 0 ? (
+        <p className="px-3 py-2 text-sm text-zinc-400">Henüz proje yok</p>
       ) : (
-        projects.map((project) => (
-          <option key={project.id} value={project.id}>
-            {project.name}
-          </option>
-        ))
+        projects.map((project) => {
+          const active = project.id === currentProjectId;
+          return (
+            <Link
+              key={project.id}
+              href={projectHref(project.id)}
+              onClick={onNavigate}
+              className={`flex items-center gap-2 truncate px-3 py-2 text-sm transition-colors ${active
+                  ? "bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+                  : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                }`}
+            >
+              <span className="truncate">{project.name}</span>
+            </Link>
+          );
+        })
       )}
-    </select>
+    </div>
   );
 }

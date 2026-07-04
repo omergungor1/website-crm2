@@ -33,6 +33,7 @@ export async function PUT(request, { params }) {
     .select("id")
     .eq("project_id", projectId)
     .eq("is_archived", false)
+    .eq("is_later", false)
     .eq("is_deleted", false);
 
   if (fetchError) return NextResponse.json({ error: fetchError.message }, { status: 500 });
@@ -60,6 +61,7 @@ export async function PUT(request, { params }) {
     .select("*")
     .eq("project_id", projectId)
     .eq("is_archived", false)
+    .eq("is_later", false)
     .eq("is_deleted", false)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });

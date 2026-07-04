@@ -58,8 +58,10 @@ export default function DashboardHeader({ user, admin = false }) {
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef(null);
+  const projectsMenuRef = useRef(null);
+  const projectsCloseTimer = useRef(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const showProjectSwitcher = pathname?.startsWith("/projects/");
+  const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
 
   const isDeepWorkActive = pathname?.startsWith("/dashboard/deep-work");
   const isRoadmapActive = pathname?.startsWith("/dashboard/roadmap");
@@ -71,16 +73,44 @@ export default function DashboardHeader({ user, admin = false }) {
       pathname?.startsWith("/projects/"));
   const isCrmActive = pathname === "/crm" || pathname?.startsWith("/crm/");
 
+  function openProjectsMenu() {
+    if (projectsCloseTimer.current) {
+      clearTimeout(projectsCloseTimer.current);
+      projectsCloseTimer.current = null;
+    }
+    setProjectsMenuOpen(true);
+  }
+
+  function closeProjectsMenu(delay = 120) {
+    if (projectsCloseTimer.current) clearTimeout(projectsCloseTimer.current);
+    projectsCloseTimer.current = setTimeout(() => {
+      setProjectsMenuOpen(false);
+      projectsCloseTimer.current = null;
+    }, delay);
+  }
+
   useEffect(() => {
-    if (!userMenuOpen) return;
+    return () => {
+      if (projectsCloseTimer.current) clearTimeout(projectsCloseTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!userMenuOpen && !projectsMenuOpen) return;
 
     function onKeyDown(e) {
-      if (e.key === "Escape") setUserMenuOpen(false);
+      if (e.key === "Escape") {
+        setUserMenuOpen(false);
+        setProjectsMenuOpen(false);
+      }
     }
 
     function onPointerDown(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setUserMenuOpen(false);
+      }
+      if (projectsMenuRef.current && !projectsMenuRef.current.contains(e.target)) {
+        setProjectsMenuOpen(false);
       }
     }
 
@@ -90,7 +120,7 @@ export default function DashboardHeader({ user, admin = false }) {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [userMenuOpen]);
+  }, [userMenuOpen, projectsMenuOpen]);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -124,15 +154,60 @@ export default function DashboardHeader({ user, admin = false }) {
 
 
           <nav className="flex shrink-0 items-center gap-1 border-l border-zinc-200 pl-2 dark:border-zinc-700 sm:pl-3">
-            <Link
-              href="/dashboard"
-              className={navLinkClass(isProjectsActive)}
-              title="Projeler"
-              onClick={() => setUserMenuOpen(false)}
+            <div
+              ref={projectsMenuRef}
+              className="relative"
+              onMouseEnter={openProjectsMenu}
+              onMouseLeave={() => closeProjectsMenu()}
             >
-              <ProjectsIcon className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">Projeler</span>
-            </Link>
+              <button
+                type="button"
+                className={navLinkClass(isProjectsActive)}
+                title="Projeler"
+                aria-expanded={projectsMenuOpen}
+                aria-haspopup="menu"
+                onClick={() => {
+                  setUserMenuOpen(false);
+                  setProjectsMenuOpen((open) => !open);
+                }}
+              >
+                <ProjectsIcon className="h-4 w-4 shrink-0" />
+                <span className="hidden sm:inline">Projeler</span>
+                <svg
+                  className={`h-3.5 w-3.5 shrink-0 opacity-60 transition-transform ${projectsMenuOpen ? "rotate-180" : ""}`}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              <div
+                role="menu"
+                className={`absolute left-0 top-full z-50 pt-1 ${projectsMenuOpen ? "" : "hidden"}`}
+                aria-hidden={!projectsMenuOpen}
+              >
+                <div className="w-56 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                  <Suspense
+                    fallback={
+                      <p className="px-3 py-2 text-sm text-zinc-400">Yükleniyor…</p>
+                    }
+                  >
+                    <ProjectSwitcher
+                      onNavigate={() => {
+                        setProjectsMenuOpen(false);
+                        setUserMenuOpen(false);
+                      }}
+                    />
+                  </Suspense>
+                </div>
+              </div>
+            </div>
             <Link
               href="/dashboard/deep-work"
               className={navLinkClass(isDeepWorkActive)}
@@ -164,25 +239,6 @@ export default function DashboardHeader({ user, admin = false }) {
             )}
           </nav>
         </div>
-
-
-
-
-        {showProjectSwitcher && (
-          <Suspense
-            fallback={
-              <select
-                disabled
-                className="min-w-0 max-w-[9rem] truncate rounded-lg border border-zinc-200 bg-zinc-100 px-2 py-1.5 text-xs text-zinc-400 sm:max-w-[14rem] sm:text-sm dark:border-zinc-700 dark:bg-zinc-800"
-                aria-label="Proje seç"
-              >
-                <option>Yükleniyor…</option>
-              </select>
-            }
-          >
-            <ProjectSwitcher />
-          </Suspense>
-        )}
 
         {user && (
           <div ref={menuRef} className="relative shrink-0">

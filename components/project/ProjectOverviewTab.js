@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardGoals from "@/components/dashboard/DashboardGoals";
 import { getTabsForProjectType, TabIcon } from "@/components/project/ProjectNavSidebar";
 
 const STATUS_LABEL = {
@@ -36,6 +37,13 @@ export default function ProjectOverviewTab({ project, onNavigate }) {
           Genel bilgiler ve hızlı erişim. Sol menüden tüm modüllere ulaşabilirsiniz.
         </p>
       </div>
+
+      <DashboardGoals
+        apiBase={`/api/projects/${project.id}/goals`}
+        title="Proje Hedefleri"
+        description="Bu projenin öncelikli hedeflerini ve ilerlemeyi burada takip et."
+        compact
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">

@@ -35,6 +35,7 @@ create table project_todos (
 
   color text check (color is null or color in ('blue','amber','rose')),
   is_archived boolean default false,
+  is_later boolean not null default false,
   is_deleted boolean not null default false,
   deleted_at timestamptz,
 
@@ -45,10 +46,77 @@ create table project_todos (
 -- Mevcut veritabanı için (bir kez):
 -- alter table project_todos add column if not exists is_deleted boolean not null default false;
 -- alter table project_todos add column if not exists deleted_at timestamptz;
+-- alter table project_todos add column if not exists is_later boolean not null default false;
 
 create index idx_project_todos_project_id on project_todos(project_id);
 create index idx_project_todos_project_sort on project_todos(project_id, sort_order);
 create index idx_project_todos_active on project_todos(project_id) where is_deleted = false;
+
+-- Kullanıcı öncelikli hedefleri (dashboard hedef yönetimi)
+create table user_goals (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  title text not null,
+  progress integer not null default 0
+    check (progress >= 0 and progress <= 100),
+  sort_order integer not null default 0,
+  is_archived boolean not null default false,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table user_goal_subgoals (
+  id uuid primary key default uuid_generate_v4(),
+  goal_id uuid not null references user_goals(id) on delete cascade,
+
+  title text not null,
+  progress integer not null default 0
+    check (progress >= 0 and progress <= 100),
+  sort_order integer not null default 0,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index idx_user_goals_user_id on user_goals(user_id);
+create index idx_user_goals_user_sort on user_goals(user_id, sort_order);
+create index idx_user_goal_subgoals_goal_id on user_goal_subgoals(goal_id);
+create index idx_user_goal_subgoals_goal_sort on user_goal_subgoals(goal_id, sort_order);
+
+-- Proje hedefleri (proje özeti hedef yönetimi)
+create table project_goals (
+  id uuid primary key default uuid_generate_v4(),
+  project_id uuid not null references projects(id) on delete cascade,
+
+  title text not null,
+  progress integer not null default 0
+    check (progress >= 0 and progress <= 100),
+  sort_order integer not null default 0,
+  is_archived boolean not null default false,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table project_goal_subgoals (
+  id uuid primary key default uuid_generate_v4(),
+  goal_id uuid not null references project_goals(id) on delete cascade,
+
+  title text not null,
+  progress integer not null default 0
+    check (progress >= 0 and progress <= 100),
+  sort_order integer not null default 0,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index idx_project_goals_project_id on project_goals(project_id);
+create index idx_project_goals_project_sort on project_goals(project_id, sort_order);
+create index idx_project_goal_subgoals_goal_id on project_goal_subgoals(goal_id);
+create index idx_project_goal_subgoals_goal_sort on project_goal_subgoals(goal_id, sort_order);
 
 create table project_mvp_features (
   id uuid primary key default uuid_generate_v4(),

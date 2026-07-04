@@ -39,12 +39,42 @@ export async function PATCH(request, { params }) {
   if (body.is_archived !== undefined) {
     updates.is_archived = Boolean(body.is_archived);
 
+    if (body.is_archived === true) {
+      updates.is_later = false;
+    }
+
     if (body.is_archived === false) {
+      updates.is_later = false;
       const { data: lastTodo } = await supabase
         .from("project_todos")
         .select("sort_order")
         .eq("project_id", projectId)
         .eq("is_archived", false)
+        .eq("is_later", false)
+        .eq("is_deleted", false)
+        .neq("id", todoId)
+        .order("sort_order", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      updates.sort_order = (lastTodo?.sort_order ?? -1) + 1;
+    }
+  }
+
+  if (body.is_later !== undefined) {
+    updates.is_later = Boolean(body.is_later);
+
+    if (body.is_later === true) {
+      updates.is_archived = false;
+    }
+
+    if (body.is_later === false) {
+      const { data: lastTodo } = await supabase
+        .from("project_todos")
+        .select("sort_order")
+        .eq("project_id", projectId)
+        .eq("is_archived", false)
+        .eq("is_later", false)
         .eq("is_deleted", false)
         .neq("id", todoId)
         .order("sort_order", { ascending: false })
