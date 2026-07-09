@@ -191,6 +191,8 @@ export default function DashboardHeader({ user, admin = false }) {
                 role="menu"
                 className={`absolute left-0 top-full z-50 pt-1 ${projectsMenuOpen ? "" : "hidden"}`}
                 aria-hidden={!projectsMenuOpen}
+                onMouseEnter={openProjectsMenu}
+                onMouseLeave={() => closeProjectsMenu()}
               >
                 <div className="w-56 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
                   <Suspense

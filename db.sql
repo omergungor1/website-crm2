@@ -1080,3 +1080,99 @@ create index idx_project_roadmaps_updated_at on project_roadmaps(updated_at desc
 -- alter table project_roadmaps
 --   alter column canvas_data set default '{"viewport":{"scrollX":0,"scrollY":0},"nodes":[],"edges":[],"annotations":[]}'::jsonb;
 
+-- =========================
+-- CopyFast (Görsel → Tasarım Prompt)
+-- =========================
+
+create table copyfast_items (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references projects(id) on delete cascade,
+  parent_id uuid references copyfast_items(id) on delete cascade,
+
+  item_type text not null check (item_type in ('page', 'component')),
+  name text not null,
+  description text default '',
+
+  web_image_url text,
+  mobile_image_url text,
+  is_responsive boolean not null default false,
+  use_ai boolean not null default false,
+
+  status text not null default 'pending'
+    check (status in ('pending', 'generating', 'generated', 'error')),
+  error_message text,
+  generated_prompt text default '',
+
+  sort_order integer not null default 0,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_copyfast_items_project_id on copyfast_items(project_id);
+create index idx_copyfast_items_parent_id on copyfast_items(parent_id);
+create index idx_copyfast_items_project_sort on copyfast_items(project_id, sort_order);
+create index idx_copyfast_items_status on copyfast_items(project_id, status);
+
+create table copyfast_meta (
+  project_id uuid primary key references projects(id) on delete cascade,
+
+  project_prompt text default '',
+  project_prompt_status text not null default 'pending'
+    check (project_prompt_status in ('pending', 'generating', 'generated', 'error')),
+  project_prompt_error text,
+
+  updated_at timestamptz not null default now()
+);
+
+-- MVP: tablo RLS kapalı
+alter table copyfast_items disable row level security;
+alter table copyfast_meta disable row level security;
+
+-- =========================
+-- CopyFast Storage (crm-copyfast bucket)
+-- MVP: storage.objects üzerinde açık politikalar
+-- =========================
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'crm-copyfast',
+  'crm-copyfast',
+  true,
+  10485760,
+  array['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "copyfast_storage_select" on storage.objects;
+drop policy if exists "copyfast_storage_insert" on storage.objects;
+drop policy if exists "copyfast_storage_update" on storage.objects;
+drop policy if exists "copyfast_storage_delete" on storage.objects;
+
+create policy "copyfast_storage_select"
+  on storage.objects for select
+  using (bucket_id = 'crm-copyfast');
+
+create policy "copyfast_storage_insert"
+  on storage.objects for insert
+  with check (bucket_id = 'crm-copyfast');
+
+create policy "copyfast_storage_update"
+  on storage.objects for update
+  using (bucket_id = 'crm-copyfast')
+  with check (bucket_id = 'crm-copyfast');
+
+create policy "copyfast_storage_delete"
+  on storage.objects for delete
+  using (bucket_id = 'crm-copyfast');
+
+-- Mevcut veritabanı için (bir kez — SQL Editor'de çalıştırın):
+-- alter table copyfast_items disable row level security;
+-- alter table copyfast_meta disable row level security;
+-- insert into storage.buckets ... (yukarıdaki insert)
+-- drop/create policy ... (yukarıdaki storage politikaları)
+-- update storage.buckets set file_size_limit = 10485760 where id = 'crm-copyfast';
+

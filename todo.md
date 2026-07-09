@@ -1,11 +1,24 @@
-Şimdi RoadmapPage özelliğini geliştirelim ve güncelleyelim. Sola bir toolbox ekleyelim. Projeler veya ara adımları uç uca ekleyerek bir roadmap oluşturacağız. Solda toolbox içinde türlü şekiller olsun. Üzerine tıklayınca sayfa ortasına eklesin. Tüm nesnelerin konumlarını json olarak tutalım. Sayfa refresh edilse de aynı dizilimde tekrar açılmalıdır. İsim ve açıklama yazılabilecek. Renk seçilebilecek. Her kutunun üzerine gelince bir ayar ikon belirsin tıklayınca modal açılsın. Title, description, renk, kutu türü, sil gibi ayarlar yapılabilsin vs... 
+.env.local içine CLAUDE_API_KEY koydum. Bunu kullanarak bir özellik geliştireceğiz. 
 
 
-Her nernenin dört köşesinde minik + butonlar gözüksün hover olunca. bu + ile diğer kutularda istediğim köşeyine ilişkilendirebilelim. Bir köşede bir bağlantı varsa hover olunca altında yeni bir + daha çıksın. İstediğim köşeden sınırsız join yapabileyim. ilişkiyi seçip del yapınca ilişki silinsin. Bazı nesneler tek başına bazıları joinli olabilir. 
+CopyFastTab içini güncelleyelim. Ana dizin içinde db.sql dosyası var. Eklemen gereken tabloları buraya ekle. 
 
-Ana dizinde db.sql dosyası var. İhtiyaç duyduğun tabloları oraya oluştur. 
+Akış şöyle olmalıdır. Kullanıcı üstte artı butonu ile ilgili projeye sayfa eklemelidir. Eklenen sayfalar db ye kaydedilmelidir. Kullanıcı sayfa ve sayfaya bağlı komponent ekleyebilir. Her sayfa ve komponentin adı, açıklaması ve görsel yükleme için upload alanı bulunmalıdır. Görseli olmayan sayfa analiz edilemez. Uyarı mesajı verelim. 
 
-Kullanıcı fikir roadmapini burada oluşturabilecektir. boş alana tıklayıp sayfayı canvas gibi kaydırabilir. Nesnelerin yerini vs değiştirebilir. DbSchemaPlannerTab komponentinde buna benzer bir yapı zaten kurmuştuk. ORada da tablo yapılarını ve ilişkilerini oluşturuyorduk. 
+Sayfa ve komponent ekleme, silme, güncelleme olmalıdır.
+
+### Şimdiki sistemde prompt üret butonuna basınca ilgili sayfa veya komponent base64 olarak görseli apiye gönderip apide tek tek claude apisine gönderip prompt üreteliyiz. Tümünü üret butonu da olabilir. İlerleyişi kullanıcı görecektir. Hangi sayfa üretildi, hangisi üretilecek. Hangisinde hata verdi, hangisi bekliyor vs.
+
+Görsel yüklendikten sonra hemen tabloda resim url update edilmelidir.
+ Claude apisi ile prompt üretildikten sonra tüm sayfa analiz verisi update edilecektir.
+
+### Prompt üret butonuna tıklayınca açılan percereden "Generating Yout Pages" yazsın ve sayfalar menü butonu gibi aynı stilde listelensin yan yana sığmayan aşağı taşsın (wrap). Prompt üret butonuna bastıktan sonra analiz edilen görsellerin üzerinden bir scanner line taramaya yapsın aşağı-yukarı animasyonla. Analiz edildiğini anlayalım. Api call yapılan ve başarılı olanda check işareti (yani ✓) gösterilsin. Hata verdiğinde ise x gösterilsin. Henüz apiye gönderilmeyi bekleyen sayfalarda ise loading gösterilsin. Her bir sayfa için uygun arka plan renklendirme ile daha açıklayıcı yap.
+
+### Hangi sayfa gönderildi, hangisi bekliyor tümünü tutmamız gerekiyor. db de tutabiliriz. Örneğin status alanında "pending", "generated", "error" gibi değerler olacak. error durumunda ise hata mesajını da tabloda tutmalıyız.
+
+### Bir backend apisi yazalım. Claude apisine görselleri tek tek göndermelidir.  Görseller sayfa sayfa gönderilecek. Her sayfa altında bir analzi butonu olsun .Kullanıcı tek tek tıklayabilir. 
 
 
-KAfamdaki proje ve sıralama akışını görselleştirmeme yardım et. Ek özellik gerekiyorsa ekleyebilirsin. Buna benzer varolan ürünler varsa onların işlevsel özelliklerini bu projeye de ekle. Kullanımı kolay ve işlevsel bir roadmap sayfası oluştur. Tüm sayfayı kullan. Olabildiğince büyük bir canvas olsun rahat görelim akışı. Gerekli güncellemeyi yap.
+Amacımız sayfa ve komponentleri claude apisi ile analiz ederek tasarım dili, ui tasarım, font, punto, renk paleti vs analiz etmesidir. Padding, radius, margin, bg, color, font vs. tüm ui analiz edilerek tasarım promptu üretilmelidir. Bu prompt cursor ai editöründe bir nextjs projesi için verilecek şekilde bir sonuç üretmelidir. 
+
+Analiz sonrası üretilen prompt db update edilmelidir. Kullanıcı sayfa yenilese bil tüm sayfa, komponent, propmtlar listelenmelidir. Prompt indir butonu, copy butonu olmalıdır. Sayfa ve genel proje prompt indir ve copy butonları olmalıdır. Gerekli güncelemeyi yap. Projenin sayfa ve componentlerini, üretilen promptu tutacak bir tablo yapalım. Kullanıcı sürükle bırak ile sayfa ekleyebilmelidir. Sayfaya bir görsel sürükle bırak yaparsa oto ekleme modalı açılabilir -> Tür: page, component, name, description, save-update -> Eklenen sayfalar altında Ai Analiz butonu ve Proje analiz butonu olmalıdır. Tek tek sayfalar analiz edilebileceği gibi toplu analiz de yapılabilmelidir. Ancak kullanıcı toplu analiz yapsa bile claude tek tek gitmeli ve dönen prompt db update ettikten sonra diğer sayfa veya komponente geçmelidir. Bu özelliği yazalım

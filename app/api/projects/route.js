@@ -12,6 +12,7 @@ export async function GET() {
     .from("projects")
     .select("*")
     .eq("is_archived", false)
+    .order("is_favorited", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (!admin) {
