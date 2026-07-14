@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { NODE_COLORS, NODE_TYPES } from "@/lib/roadmap/constants";
+import { NODE_COLORS, NODE_TYPES, resolveNodeTypeId } from "@/lib/roadmap/constants";
 import RoadmapDeleteConfirmModal from "./RoadmapDeleteConfirmModal";
 
 export default function NodeSettingsModal({ node, onClose, onChange, onDelete }) {
@@ -14,7 +14,7 @@ export default function NodeSettingsModal({ node, onClose, onChange, onDelete })
         title: node.title,
         description: node.description,
         color: node.color,
-        type: node.type,
+        type: resolveNodeTypeId(node.type),
         imageUrl: node.imageUrl || "",
       });
       setShowDeleteConfirm(false);

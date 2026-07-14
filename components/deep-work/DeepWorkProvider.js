@@ -1,160 +1,172 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  createTask,
-  deleteTask,
-  fetchActiveSession,
-  fetchProjects,
-  fetchSettings,
-  fetchStats,
-  fetchTasks,
-  moveTask,
-  saveSettings,
-  startSession,
-  stopSession,
-  updateTask,
-} from "@/lib/deep-work/clientApi";
-import { TIMER_STORAGE_KEY } from "@/lib/deep-work/constants";
+import { fetchBoard, moveBoardTodo, fetchStats } from "@/lib/deep-work/clientApi";
+import { useDeepWorkSession } from "@/components/deep-work/DeepWorkSessionProvider";
 
 const DeepWorkContext = createContext(null);
 
 export function DeepWorkProvider({ children }) {
-  const [tasks, setTasks] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [settings, setSettings] = useState(null);
+  const {
+    refresh: refreshSession,
+    activeSession,
+    settings,
+    goalMinutes,
+    todayMinutes,
+    elapsedSeconds,
+    remainingSeconds,
+    progress,
+    timerLabel,
+    remainingLabel,
+    loading: sessionLoading,
+    busy,
+    isRunning,
+    isPaused,
+    hasSession,
+    beginSession,
+    pause,
+    resume,
+    stop,
+    reset,
+    togglePause,
+  } = useDeepWorkSession();
+
+  const [board, setBoard] = useState(null);
   const [stats, setStats] = useState(null);
-  const [activeSession, setActiveSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [openProjects, setOpenProjects] = useState({});
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (range) => {
     try {
-      const [allTasks, proj, sett, st, session] = await Promise.all([
-        fetchTasks({ include_archive: true }),
-        fetchProjects(),
-        fetchSettings(),
+      const [b, st] = await Promise.all([
+        fetchBoard(range || {}),
         fetchStats(),
-        fetchActiveSession(),
       ]);
-      setTasks(allTasks);
-      setProjects(proj);
-      setSettings(sett);
+      setBoard(b);
       setStats(st);
-      setActiveSession(session);
-      if (session?.id) {
-        localStorage.setItem(
-          TIMER_STORAGE_KEY,
-          JSON.stringify({ sessionId: session.id, taskId: session.task_id, startedAt: session.started_at })
-        );
-      } else {
-        localStorage.removeItem(TIMER_STORAGE_KEY);
-      }
       setError("");
+      await refreshSession();
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshSession]);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const addTask = useCallback(async (payload) => {
-    const task = await createTask(payload);
-    setTasks((prev) => [...prev, task]);
-    return task;
+  const toggleProject = useCallback((projectId) => {
+    setOpenProjects((prev) => ({ ...prev, [projectId]: !prev[projectId] }));
   }, []);
 
-  const patchTask = useCallback(async (id, payload) => {
-    const task = await updateTask(id, payload);
-    setTasks((prev) => prev.map((t) => (t.id === id ? task : t)));
-    return task;
+  const openProject = useCallback((projectId) => {
+    if (!projectId) return;
+    setOpenProjects((prev) => ({ ...prev, [projectId]: true }));
   }, []);
 
-  const removeTask = useCallback(async (id) => {
-    await deleteTask(id);
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const assignTodo = useCallback(
+    async ({ todoId, plannedDate, toBacklog, isCompleted }) => {
+      const payload = { todo_id: todoId };
+      if (toBacklog) payload.to_backlog = true;
+      if (plannedDate !== undefined) payload.planned_date = plannedDate;
+      if (isCompleted !== undefined) payload.is_completed = isCompleted;
+      await moveBoardTodo(payload);
+      await reload();
+    },
+    [reload]
+  );
 
-  const reorderTasks = useCallback(async (orderedIds, status) => {
-    await moveTask({ ordered_ids: orderedIds, status });
-    await reload();
-  }, [reload]);
-
-  const moveTaskTo = useCallback(async (taskId, status, sortOrder) => {
-    const task = await moveTask({ task_id: taskId, status, sort_order: sortOrder });
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? task : t)));
-    return task;
-  }, []);
-
-  const beginSession = useCallback(async (taskId, sessionType = "focus") => {
-    const session = await startSession(taskId, sessionType);
-    setActiveSession(session);
-    localStorage.setItem(
-      TIMER_STORAGE_KEY,
-      JSON.stringify({ sessionId: session.id, taskId: session.task_id, startedAt: session.started_at })
-    );
-    await reload();
-    return session;
-  }, [reload]);
-
-  const endSession = useCallback(async () => {
-    if (!activeSession?.id) return;
-    await stopSession(activeSession.id);
-    setActiveSession(null);
-    localStorage.removeItem(TIMER_STORAGE_KEY);
-    await reload();
-  }, [activeSession, reload]);
-
-  const updateSettings = useCallback(async (payload) => {
-    const s = await saveSettings(payload);
-    setSettings(s);
-    return s;
-  }, []);
+  const loadRange = useCallback(
+    async (from, to) => {
+      const b = await fetchBoard({ from, to });
+      setBoard((prev) => ({
+        ...b,
+        week: prev?.week || b.week,
+        projects: prev?.projects || b.projects,
+        dayMinutes: { ...(prev?.dayMinutes || {}), ...(b.dayMinutes || {}) },
+        scheduled: mergeScheduled(prev?.scheduled, b.scheduled),
+      }));
+    },
+    []
+  );
 
   const value = useMemo(
     () => ({
-      tasks,
-      projects,
-      settings,
+      board,
       stats,
-      activeSession,
-      loading,
+      loading: loading || sessionLoading,
       error,
+      openProjects,
+      toggleProject,
+      openProject,
+      assignTodo,
       reload,
-      addTask,
-      patchTask,
-      removeTask,
-      reorderTasks,
-      moveTaskTo,
+      loadRange,
+      activeSession,
+      settings,
+      goalMinutes,
+      todayMinutes,
+      elapsedSeconds,
+      remainingSeconds,
+      progress,
+      timerLabel,
+      remainingLabel,
+      busy,
+      isRunning,
+      isPaused,
+      hasSession,
       beginSession,
-      endSession,
-      updateSettings,
+      pause,
+      resume,
+      stop,
+      reset,
+      togglePause,
     }),
     [
-      tasks,
-      projects,
-      settings,
+      board,
       stats,
-      activeSession,
       loading,
+      sessionLoading,
       error,
+      openProjects,
+      toggleProject,
+      openProject,
+      assignTodo,
       reload,
-      addTask,
-      patchTask,
-      removeTask,
-      reorderTasks,
-      moveTaskTo,
+      loadRange,
+      activeSession,
+      settings,
+      goalMinutes,
+      todayMinutes,
+      elapsedSeconds,
+      remainingSeconds,
+      progress,
+      timerLabel,
+      remainingLabel,
+      busy,
+      isRunning,
+      isPaused,
+      hasSession,
       beginSession,
-      endSession,
-      updateSettings,
+      pause,
+      resume,
+      stop,
+      reset,
+      togglePause,
     ]
   );
 
   return <DeepWorkContext.Provider value={value}>{children}</DeepWorkContext.Provider>;
+}
+
+function mergeScheduled(prev = [], next = []) {
+  const map = new Map();
+  for (const t of prev || []) map.set(t.id, t);
+  for (const t of next || []) map.set(t.id, t);
+  return Array.from(map.values());
 }
 
 export function useDeepWork() {

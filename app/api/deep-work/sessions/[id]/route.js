@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireDeepWorkUser } from "@/lib/deep-work/auth";
-import { minutesBetween } from "@/lib/deep-work/dateUtils";
+import { sessionElapsedSeconds } from "@/lib/deep-work/sessionUtils";
+
+const SESSION_SELECT =
+  "*, deep_work_tasks(id, title), project_todos(id, title, project_id, projects(id, name))";
 
 export async function PATCH(request, { params }) {
   const auth = await requireDeepWorkUser();
@@ -8,9 +11,12 @@ export async function PATCH(request, { params }) {
   const { supabase, user } = auth;
   const { id } = await params;
 
+  const body = await request.json().catch(() => ({}));
+  const action = body.action || "stop";
+
   const { data: session, error: fetchErr } = await supabase
     .from("deep_work_sessions")
-    .select("*, deep_work_tasks(id, worked_minutes)")
+    .select("*")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -19,25 +25,80 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: "Oturum bulunamadı" }, { status: 404 });
   }
 
-  const endedAt = new Date().toISOString();
-  const duration = minutesBetween(session.started_at, endedAt);
+  if (session.status === "ended" || session.ended_at) {
+    return NextResponse.json({ error: "Oturum zaten sonlanmış" }, { status: 400 });
+  }
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  let updates = {};
+
+  if (action === "pause") {
+    if (session.status !== "running") {
+      return NextResponse.json({ error: "Oturum çalışmıyor" }, { status: 400 });
+    }
+    const elapsed = sessionElapsedSeconds(session, now);
+    updates = {
+      status: "paused",
+      paused_at: nowIso,
+      accumulated_seconds: elapsed,
+      last_resumed_at: null,
+    };
+  } else if (action === "resume") {
+    if (session.status !== "paused") {
+      return NextResponse.json({ error: "Oturum duraklatılmamış" }, { status: 400 });
+    }
+    updates = {
+      status: "running",
+      paused_at: null,
+      last_resumed_at: nowIso,
+    };
+  } else if (action === "reset") {
+    updates = {
+      status: "running",
+      accumulated_seconds: 0,
+      started_at: nowIso,
+      last_resumed_at: nowIso,
+      paused_at: null,
+    };
+  } else if (action === "stop") {
+    const elapsedSec = sessionElapsedSeconds(session, now);
+    const duration = Math.max(0, Math.round(elapsedSec / 60));
+    updates = {
+      status: "ended",
+      ended_at: nowIso,
+      duration_minutes: duration,
+      accumulated_seconds: elapsedSec,
+      paused_at: null,
+    };
+
+    if (session.session_type === "focus" && session.task_id) {
+      const { data: task } = await supabase
+        .from("deep_work_tasks")
+        .select("worked_minutes")
+        .eq("id", session.task_id)
+        .maybeSingle();
+      if (task) {
+        await supabase
+          .from("deep_work_tasks")
+          .update({
+            worked_minutes: (task.worked_minutes || 0) + duration,
+            updated_at: nowIso,
+          })
+          .eq("id", session.task_id);
+      }
+    }
+  } else {
+    return NextResponse.json({ error: "Geçersiz action" }, { status: 400 });
+  }
 
   const { data, error } = await supabase
     .from("deep_work_sessions")
-    .update({ ended_at: endedAt, duration_minutes: duration })
+    .update(updates)
     .eq("id", id)
-    .select("*, deep_work_tasks(id, title, worked_minutes, status)")
+    .select(SESSION_SELECT)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  if (session.session_type === "focus" && session.deep_work_tasks) {
-    const newWorked = (session.deep_work_tasks.worked_minutes || 0) + duration;
-    await supabase
-      .from("deep_work_tasks")
-      .update({ worked_minutes: newWorked, updated_at: endedAt })
-      .eq("id", session.task_id);
-  }
-
   return NextResponse.json(data);
 }

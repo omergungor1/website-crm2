@@ -34,6 +34,15 @@ export async function PATCH(request, { params }) {
 
   if (body.is_completed !== undefined) {
     updates.is_completed = Boolean(body.is_completed);
+    updates.completed_at = updates.is_completed ? new Date().toISOString() : null;
+  }
+
+  if (body.planned_date !== undefined) {
+    updates.planned_date = body.planned_date || null;
+  }
+
+  if (body.completed_at !== undefined) {
+    updates.completed_at = body.completed_at || null;
   }
 
   if (body.is_archived !== undefined) {

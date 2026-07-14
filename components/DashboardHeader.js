@@ -6,6 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ProjectSwitcher from "@/components/ProjectSwitcher";
+import { useDeepWorkSessionOptional } from "@/components/deep-work/DeepWorkSessionProvider";
 
 function DefaultAvatarIcon({ className }) {
   return (
@@ -62,6 +63,8 @@ export default function DashboardHeader({ user, admin = false }) {
   const projectsCloseTimer = useRef(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
+  const session = useDeepWorkSessionOptional();
+
 
   const isDeepWorkActive = pathname?.startsWith("/dashboard/deep-work");
   const isRoadmapActive = pathname?.startsWith("/dashboard/roadmap");
@@ -132,7 +135,7 @@ export default function DashboardHeader({ user, admin = false }) {
 
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-3 py-3 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <Link
             href="/dashboard"
@@ -243,7 +246,50 @@ export default function DashboardHeader({ user, admin = false }) {
         </div>
 
         {user && (
-          <div ref={menuRef} className="relative shrink-0">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            {session?.hasSession && (
+              <div className="flex max-w-[14rem] items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 dark:border-emerald-900 dark:bg-emerald-950/40 sm:max-w-none sm:px-3">
+                <span
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                    session.isPaused ? "bg-amber-500" : "animate-pulse bg-emerald-500"
+                  }`}
+                />
+                <div className="min-w-0 hidden sm:block">
+                  <p className="font-mono text-xs font-semibold tabular-nums text-emerald-900 dark:text-emerald-200">
+                    {session.timerLabel}
+                  </p>
+                  <div className="mt-0.5 h-1 w-20 overflow-hidden rounded-full bg-emerald-200/80 dark:bg-emerald-900">
+                    <div
+                      className="h-full rounded-full bg-emerald-600 dark:bg-emerald-400"
+                      style={{ width: `${Math.min(100, session.progress.percent)}%` }}
+                    />
+                  </div>
+                </div>
+                <p className="font-mono text-xs font-semibold tabular-nums text-emerald-900 dark:text-emerald-200 sm:hidden">
+                  {session.timerLabel}
+                </p>
+                <p className="hidden text-[10px] text-emerald-700/80 dark:text-emerald-300/80 md:block">
+                  kalan {session.remainingLabel}
+                </p>
+                <button
+                  type="button"
+                  disabled={session.busy}
+                  onClick={() => session.togglePause()}
+                  className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-emerald-800 hover:bg-white dark:bg-emerald-900/60 dark:text-emerald-100"
+                  title={session.isPaused ? "Devam" : "Duraklat"}
+                >
+                  {session.isPaused ? "▶" : "❚❚"}
+                </button>
+                <Link
+                  href="/dashboard/deep-work?tab=board"
+                  className="hidden rounded-full px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 hover:underline dark:text-emerald-300 lg:inline"
+                >
+                  Deep Work
+                </Link>
+              </div>
+            )}
+
+            <div ref={menuRef} className="relative">
             <button
               type="button"
               onClick={() => setUserMenuOpen((o) => !o)}
@@ -281,6 +327,7 @@ export default function DashboardHeader({ user, admin = false }) {
                 </div>
               </div>
             )}
+            </div>
           </div>
         )}
       </div>

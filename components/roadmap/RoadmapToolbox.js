@@ -1,13 +1,19 @@
 "use client";
 
-import { NODE_TYPES } from "@/lib/roadmap/constants";
+import { NODE_TYPES, nodeShapeClass } from "@/lib/roadmap/constants";
 import { ANNOTATION_TYPES } from "@/lib/roadmap/annotations";
 
-function shapeClass(shape) {
-  if (shape === "circle") return "rounded-full";
-  if (shape === "diamond") return "rotate-45 rounded-lg";
-  if (shape === "rectangle") return "rounded-md";
-  return "rounded-xl";
+function toolPreviewSize(shape) {
+  if (shape === "circle" || shape === "diamond" || shape === "square") {
+    return { width: 16, height: 16 };
+  }
+  if (shape === "ellipse") {
+    return { width: 20, height: 12 };
+  }
+  if (shape === "rectangle") {
+    return { width: 20, height: 12 };
+  }
+  return { width: 18, height: 14 };
 }
 
 function ToolButton({ title, onClick, children }) {
@@ -34,18 +40,18 @@ export default function RoadmapToolbox({ onAddNode, onAddAnnotation }) {
           Node
         </p>
         <div className="space-y-1">
-          {nodeTools.map((t) => (
-            <ToolButton key={t.id} title={t.label} onClick={() => onAddNode(t.id)}>
-              <span
-                className={`flex h-5 w-5 shrink-0 items-center justify-center border-2 border-current ${shapeClass(t.shape)}`}
-                style={{
-                  width: 18,
-                  height: t.shape === "circle" || t.shape === "diamond" ? 18 : 14,
-                }}
-              />
-              <span className="truncate">{t.label}</span>
-            </ToolButton>
-          ))}
+          {nodeTools.map((t) => {
+            const size = toolPreviewSize(t.shape);
+            return (
+              <ToolButton key={t.id} title={t.label} onClick={() => onAddNode(t.id)}>
+                <span
+                  className={`flex shrink-0 items-center justify-center border-2 border-current ${nodeShapeClass(t.shape)}`}
+                  style={size}
+                />
+                <span className="truncate">{t.label}</span>
+              </ToolButton>
+            );
+          })}
         </div>
 
         <p className="mb-1.5 mt-4 px-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">

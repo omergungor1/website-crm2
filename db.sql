@@ -39,6 +39,9 @@ create table project_todos (
   is_deleted boolean not null default false,
   deleted_at timestamptz,
 
+  planned_date date,
+  completed_at timestamptz,
+
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -554,6 +557,7 @@ create table deep_work_tasks (
   sort_order integer not null default 0,
 
   project_id uuid references projects(id) on delete set null,
+  source_todo_id uuid references project_todos(id) on delete set null,
   planned_date date,
   is_today_plan boolean not null default false,
 
@@ -572,11 +576,18 @@ create index idx_deep_work_tasks_today_plan on deep_work_tasks(user_id, is_today
 create table deep_work_sessions (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  task_id uuid not null references deep_work_tasks(id) on delete cascade,
+  task_id uuid references deep_work_tasks(id) on delete set null,
+  project_todo_id uuid references project_todos(id) on delete set null,
 
   started_at timestamptz not null default now(),
   ended_at timestamptz,
+  paused_at timestamptz,
+  last_resumed_at timestamptz,
+  accumulated_seconds integer not null default 0,
   duration_minutes integer not null default 0,
+
+  status text not null default 'running'
+    check (status in ('running', 'paused', 'ended')),
 
   session_type text not null default 'focus'
     check (session_type in ('focus', 'break'))

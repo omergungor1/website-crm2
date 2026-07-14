@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { nanoid } from "nanoid";
 import {
   ANCHORS,
@@ -27,6 +27,7 @@ import {
 } from "@/lib/roadmap/utils";
 import AnnotationSettingsModal from "./AnnotationSettingsModal";
 import NodeSettingsModal from "./NodeSettingsModal";
+import RoadmapAddTodoModal from "./RoadmapAddTodoModal";
 import RoadmapAnnotationView from "./RoadmapAnnotationView";
 import RoadmapNodeBox from "./RoadmapNodeBox";
 import RoadmapToolbox from "./RoadmapToolbox";
@@ -38,6 +39,10 @@ function countAnchorUsage(edges, nodeId, anchor) {
       (e.toNodeId === nodeId && migrateAnchor(e.toAnchor) === anchor)
   ).length;
 }
+
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 2;
+const ZOOM_STEP = 0.1;
 
 export default function RoadmapShell({ projectId = null, onBack, projectName }) {
   const apiUrl = projectId ? `/api/projects/${projectId}/roadmap` : "/api/roadmap";
@@ -60,8 +65,18 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState([]);
   const [hoveredLineId, setHoveredLineId] = useState(null);
+  const [addTodoOpen, setAddTodoOpen] = useState(false);
+  const [addTodoSaving, setAddTodoSaving] = useState(false);
+  const [addTodoError, setAddTodoError] = useState("");
+  const [zoom, setZoom] = useState(1);
   const canvasRef = useRef(null);
   const saveTimerRef = useRef(null);
+  const zoomRef = useRef(1);
+  const pendingZoomScrollRef = useRef(null);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
 
   function clearSelection() {
     setSelectedNodeIds([]);
@@ -125,6 +140,46 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     const el = canvasRef.current;
     if (!el) return;
     setViewport({ scrollX: el.scrollLeft, scrollY: el.scrollTop });
+  }, []);
+
+  useLayoutEffect(() => {
+    const pending = pendingZoomScrollRef.current;
+    const el = canvasRef.current;
+    if (!pending || !el) return;
+    el.scrollLeft = pending.left;
+    el.scrollTop = pending.top;
+    pendingZoomScrollRef.current = null;
+    persistViewport();
+  }, [zoom, persistViewport]);
+
+  const applyZoom = useCallback((nextZoom, anchorClient = null) => {
+    const el = canvasRef.current;
+    const clamped = Math.min(
+      ZOOM_MAX,
+      Math.max(ZOOM_MIN, Math.round(nextZoom * 100) / 100)
+    );
+    const prev = zoomRef.current || 1;
+    if (Math.abs(clamped - prev) < 0.005) return;
+
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const viewX = anchorClient ? anchorClient.x - rect.left : el.clientWidth / 2;
+      const viewY = anchorClient ? anchorClient.y - rect.top : el.clientHeight / 2;
+      // Art arda wheel olaylarında henüz uygulanmamış scroll hedefini kullan
+      const scrollLeft = pendingZoomScrollRef.current?.left ?? el.scrollLeft;
+      const scrollTop = pendingZoomScrollRef.current?.top ?? el.scrollTop;
+      const contentX = (scrollLeft + viewX) / prev;
+      const contentY = (scrollTop + viewY) / prev;
+      pendingZoomScrollRef.current = {
+        left: contentX * clamped - viewX,
+        top: contentY * clamped - viewY,
+      };
+    } else {
+      pendingZoomScrollRef.current = null;
+    }
+
+    zoomRef.current = clamped;
+    setZoom(clamped);
   }, []);
 
   useEffect(() => {
@@ -266,8 +321,9 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   useEffect(() => {
     if (!dragging) return;
     function onMove(e) {
-      const dx = e.clientX - dragging.startX;
-      const dy = e.clientY - dragging.startY;
+      const z = zoomRef.current || 1;
+      const dx = (e.clientX - dragging.startX) / z;
+      const dy = (e.clientY - dragging.startY) / z;
 
       if (dragging.target === "selection") {
         const { nodeOrigins, annotationOrigins } = dragging;
@@ -364,18 +420,43 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       const el = canvasRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
+      const z = zoomRef.current || 1;
       setLinkPointer({
-        x: e.clientX - rect.left + el.scrollLeft,
-        y: e.clientY - rect.top + el.scrollTop,
+        x: (e.clientX - rect.left + el.scrollLeft) / z,
+        y: (e.clientY - rect.top + el.scrollTop) / z,
       });
     }
     window.addEventListener("pointermove", onMove);
     return () => window.removeEventListener("pointermove", onMove);
   }, [linking]);
 
+  function zoomIn() {
+    applyZoom((zoomRef.current || 1) + ZOOM_STEP);
+  }
+
+  function zoomOut() {
+    applyZoom((zoomRef.current || 1) - ZOOM_STEP);
+  }
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el || loading) return;
+
+    function onWheel(e) {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      // Trackpad / mouse: sürekli delta ile yumuşak zoom
+      const factor = Math.exp(-e.deltaY * 0.0018);
+      applyZoom((zoomRef.current || 1) * factor, { x: e.clientX, y: e.clientY });
+    }
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [loading, applyZoom]);
+
   function addNode(typeId) {
     const def = getNodeTypeDef(typeId);
-    const center = getCanvasCenter(canvasRef.current);
+    const center = getCanvasCenter(canvasRef.current, zoom);
     setNodes((prev) => [
       ...prev,
       {
@@ -394,7 +475,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }
 
   function addAnnotation(typeId) {
-    const center = getCanvasCenter(canvasRef.current);
+    const center = getCanvasCenter(canvasRef.current, zoom);
     setAnnotations((prev) => [
       ...prev,
       createAnnotation(typeId, center, prev.length, nanoid(10)),
@@ -552,10 +633,10 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       prev.map((n) =>
         n.id === nodeId
           ? {
-              ...n,
-              ...patch,
-              ...(def ? { width: def.width, height: def.height } : {}),
-            }
+            ...n,
+            ...patch,
+            ...(def ? { width: def.width, height: def.height } : {}),
+          }
           : n
       )
     );
@@ -582,9 +663,9 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   const linkFromAnchor = linking
     ? getAnchorPoint(
-        nodes.find((n) => n.id === linking.fromNodeId),
-        linking.fromAnchor
-      )
+      nodes.find((n) => n.id === linking.fromNodeId),
+      linking.fromAnchor
+    )
     : null;
 
   const canvasCursor = linking
@@ -763,30 +844,99 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
             {projectName ? (
               <span className="truncate font-medium text-zinc-700 dark:text-zinc-200">{projectName}</span>
             ) : null}
-            <p className="hidden text-zinc-500 sm:block">
-              ⌘S kaydet · Ctrl+tık: çoklu seç · Seçilileri sürükle · Boş alan: kaydır · Çift tık: ayarlar · Delete: sil
-            </p>
+            <p className="hidden text-zinc-500 sm:block">⌘S kaydet</p>
+            {projectId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setAddTodoError("");
+                  setAddTodoOpen(true);
+                }}
+                title="Todo ekle"
+                aria-label="Todo ekle"
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" />
+                </svg>
+                Todo
+              </button>
+            ) : null}
           </div>
           <div className="flex items-center gap-2 text-zinc-500">
-            {saving && <span>Kaydediliyor…</span>}
-            {!saving && saveMsg && (
-              <span className="text-emerald-600 dark:text-emerald-400">{saveMsg}</span>
-            )}
-            {!saving && !saveMsg && isDirty && <span>Kaydedilecek…</span>}
-            {!saving && !saveMsg && !isDirty && <span>Kaydedildi</span>}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={zoomOut}
+                disabled={zoom <= ZOOM_MIN}
+                title="Uzaklaştır"
+                aria-label="Uzaklaştır"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path fillRule="evenodd" d="M4 10a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyZoom(1)}
+                title="Zoom sıfırla"
+                className="min-w-[3rem] rounded-lg px-1.5 py-1 text-center text-[11px] font-medium tabular-nums text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                type="button"
+                onClick={zoomIn}
+                disabled={zoom >= ZOOM_MAX}
+                title="Yakınlaştır"
+                aria-label="Yakınlaştır"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path
+                    fillRule="evenodd"
+                    d="M10 4a1 1 0 011 1v4h4a1 1 0 110 2h-4v4a1 1 0 11-2 0v-4H5a1 1 0 110-2h4V5a1 1 0 011-1z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div className="w-[7.5rem] shrink-0 text-right tabular-nums">
+              {saving && <span>Kaydediliyor…</span>}
+              {!saving && saveMsg && (
+                <span className="text-emerald-600 dark:text-emerald-400">{saveMsg}</span>
+              )}
+              {!saving && !saveMsg && isDirty && <span>Kaydedilecek…</span>}
+              {!saving && !saveMsg && !isDirty && <span>Kaydedildi</span>}
+            </div>
           </div>
         </div>
 
         <div
           ref={canvasRef}
-          className={`relative flex-1 overflow-auto bg-[length:24px_24px] bg-zinc-100 dark:bg-zinc-950 ${canvasCursor}`}
+          className={`roadmap-canvas-scroll relative flex-1 overflow-auto bg-[length:24px_24px] bg-zinc-100 dark:bg-zinc-950 ${canvasCursor}`}
           style={{
             backgroundImage:
               "radial-gradient(circle, rgb(161 161 170 / 0.35) 1px, transparent 1px)",
           }}
           onPointerDown={startCanvasPan}
         >
-          <div className="relative" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
+          <div
+            className="relative"
+            style={{
+              width: CANVAS_WIDTH * zoom,
+              height: CANVAS_HEIGHT * zoom,
+            }}
+          >
+            <div
+              className="absolute left-0 top-0 origin-top-left"
+              style={{
+                width: CANVAS_WIDTH,
+                height: CANVAS_HEIGHT,
+                transform: `scale(${zoom})`,
+              }}
+            >
             {frameAnnotations.map(renderFrameVisual)}
 
             <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full overflow-visible">
@@ -913,13 +1063,12 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                             data-roadmap-anchor=""
                             title={linking ? "Bağlantıyı buraya bağla" : "Bağlantı başlat"}
                             onPointerDown={(e) => handleAnchorPointerDown(e, node.id, anchor)}
-                            className={`absolute z-20 flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold shadow transition ${
-                              isSource
+                            className={`absolute z-20 flex h-5 w-5 items-center justify-center rounded-full border text-xs font-bold shadow transition ${isSource
                                 ? "border-indigo-500 bg-indigo-500 text-white"
                                 : isTarget
                                   ? "border-indigo-400 bg-white text-indigo-600 hover:scale-110 hover:bg-indigo-50"
                                   : "border-zinc-300 bg-white text-zinc-600 hover:border-indigo-400 hover:text-indigo-600 dark:border-zinc-600 dark:bg-zinc-800"
-                            }`}
+                              }`}
                             style={{ left: pos.left, top: pos.top }}
                           >
                             +
@@ -936,6 +1085,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
             {frameAnnotations.map(renderFrameChrome)}
 
             {lineAnnotations.map(renderLineHandles)}
+            </div>
           </div>
         </div>
       </div>
@@ -953,6 +1103,36 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         onChange={applyAnnotationDraft}
         onDelete={deleteAnnotation}
       />
+
+      {projectId ? (
+        <RoadmapAddTodoModal
+          open={addTodoOpen}
+          projectName={projectName}
+          saving={addTodoSaving}
+          error={addTodoError}
+          onClose={() => {
+            if (!addTodoSaving) setAddTodoOpen(false);
+          }}
+          onSave={async ({ title, color }) => {
+            setAddTodoSaving(true);
+            setAddTodoError("");
+            try {
+              const res = await fetch(`/api/projects/${projectId}/todos`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ title, color }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Eklenemedi");
+              setAddTodoOpen(false);
+            } catch (err) {
+              setAddTodoError(err.message);
+            } finally {
+              setAddTodoSaving(false);
+            }
+          }}
+        />
+      ) : null}
     </div>
   );
 }

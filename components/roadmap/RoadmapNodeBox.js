@@ -1,14 +1,7 @@
 "use client";
 
 import { getDescriptionFontSize, getTitleFontSize } from "@/lib/roadmap/nodeDisplay";
-import { getNodeTypeDef } from "@/lib/roadmap/constants";
-
-function shapeClass(shape) {
-  if (shape === "circle") return "rounded-full";
-  if (shape === "diamond") return "rotate-45 rounded-lg";
-  if (shape === "rectangle") return "rounded-md";
-  return "rounded-xl";
-}
+import { getNodeTypeDef, nodeShapeClass } from "@/lib/roadmap/constants";
 
 export default function RoadmapNodeBox({ node, selected = false, onDoubleClick }) {
   const def = getNodeTypeDef(node.type);
@@ -37,7 +30,7 @@ export default function RoadmapNodeBox({ node, selected = false, onDoubleClick }
       ) : null}
 
       <div
-        className={`relative flex h-full w-full flex-col items-center justify-center border-2 px-2.5 py-2 shadow-md ${shapeClass(def.shape)} ${innerRotate} ${
+        className={`relative flex h-full w-full flex-col items-center justify-center border-2 px-2.5 py-2 shadow-md ${nodeShapeClass(def.shape)} ${innerRotate} ${
           selected ? "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-zinc-950" : ""
         }`}
         style={{
