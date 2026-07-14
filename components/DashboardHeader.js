@@ -27,7 +27,7 @@ function ProjectsIcon({ className }) {
 function DeepWorkIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z" />
+      <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm-7 7H3v4c0 1.1.9 2 2 2h4v-2H5v-4zM5 5h4V3H5c-1.1 0-2 .9-2 2v4h2V5zm14-2h-4v2h4v4h2V5c0-1.1-.9-2-2-2zm0 16h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4z" />
     </svg>
   );
 }
@@ -35,17 +35,24 @@ function DeepWorkIcon({ className }) {
 function RoadmapIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V9.5h16V18zm0-10.5H4V6h16v1.5zM6.5 15.5h3v-3h-3v3zm0-4h3v-3h-3v3zm4 4h3v-3h-3v3zm0-4h3v-3h-3v3zm4 4h3v-3h-3v3zm0-4h3v-3h-3v3z" />
+      <path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z" />
     </svg>
   );
 }
 
-function CallIcon({ className }) {
+function CrmIcon({ className }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" />
+      <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
     </svg>
   );
+}
+
+function iconNavClass(active) {
+  return `inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${active
+    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+    }`;
 }
 
 function navLinkClass(active) {
@@ -215,31 +222,31 @@ export default function DashboardHeader({ user, admin = false }) {
             </div>
             <Link
               href="/dashboard/deep-work"
-              className={navLinkClass(isDeepWorkActive)}
+              className={iconNavClass(isDeepWorkActive)}
               title="Deep Work"
+              aria-label="Deep Work"
               onClick={() => setUserMenuOpen(false)}
             >
-              <DeepWorkIcon className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">Deep Work</span>
+              <DeepWorkIcon className="h-5 w-5" />
             </Link>
             <Link
               href="/dashboard/roadmap"
-              className={navLinkClass(isRoadmapActive)}
+              className={iconNavClass(isRoadmapActive)}
               title="RoadMap"
+              aria-label="RoadMap"
               onClick={() => setUserMenuOpen(false)}
             >
-              <RoadmapIcon className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">RoadMap</span>
+              <RoadmapIcon className="h-5 w-5" />
             </Link>
             {admin && (
               <Link
                 href="/crm"
-                className={navLinkClass(isCrmActive)}
+                className={iconNavClass(isCrmActive)}
                 title="Müşteri CRM"
+                aria-label="Müşteri CRM"
                 onClick={() => setUserMenuOpen(false)}
               >
-                <CallIcon className="h-4 w-4 shrink-0" />
-                <span className="hidden sm:inline">Müşteri CRM</span>
+                <CrmIcon className="h-5 w-5" />
               </Link>
             )}
           </nav>
