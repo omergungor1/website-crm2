@@ -38,6 +38,7 @@ export async function GET(request) {
       .eq("is_deleted", false)
       .eq("is_archived", false)
       .eq("is_later", false)
+      .order("board_sort_order", { ascending: true })
       .order("sort_order", { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -77,7 +78,17 @@ export async function GET(request) {
     if (!(key in dayMinutes)) dayMinutes[key] = 0;
   }
 
-  const backlog = todos.filter((t) => !t.is_completed && !t.planned_date);
+  // Board sütunları: yalnızca dün/bugün/yarın
+  const boardDates = new Set(weekStrs);
+
+  // Bekleyen: planı yok VEYA planı board dışı + tamamlanmamış
+  const backlog = todos.filter((t) => {
+    if (t.is_completed) return false;
+    if (!t.planned_date) return true;
+    return !boardDates.has(t.planned_date);
+  });
+
+  // Takvim / özel aralık için planlı todolar (board + ay görünümü)
   const scheduled = todos.filter((t) => {
     if (!t.planned_date) return false;
     return t.planned_date >= rangeStart && t.planned_date <= rangeEnd;

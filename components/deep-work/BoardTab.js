@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDeepWork } from "@/components/deep-work/DeepWorkProvider";
 import SessionConfirmModal from "@/components/deep-work/SessionConfirmModal";
+import { BACKLOG_SIDEBAR_KEY } from "@/lib/deep-work/constants";
 import { dayHeaderLabel, todayDateStr } from "@/lib/deep-work/dateUtils";
 import { formatHoursShort } from "@/lib/deep-work/sessionUtils";
 
@@ -12,24 +13,9 @@ const TODO_COLORS = [
   { id: "rose", label: "Kırmızı", dot: "bg-rose-500" },
 ];
 
-function handleTodoTextareaKeyDown(e, value, setValue) {
+function handleTodoTextareaKeyDown(e) {
   if (e.key !== "Enter") return;
-
-  if (e.metaKey || e.ctrlKey) {
-    e.preventDefault();
-    const el = e.currentTarget;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const next = `${value.slice(0, start)}\n${value.slice(end)}`;
-    setValue(next);
-    requestAnimationFrame(() => {
-      const pos = start + 1;
-      el.selectionStart = pos;
-      el.selectionEnd = pos;
-    });
-    return;
-  }
-
+  if (!(e.metaKey || e.ctrlKey)) return;
   e.preventDefault();
   e.currentTarget.form?.requestSubmit();
 }
@@ -110,7 +96,7 @@ function AddTodoModal({ open, projects, saving, error, onClose, onSave }) {
             <textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => handleTodoTextareaKeyDown(e, title, setTitle)}
+              onKeyDown={handleTodoTextareaKeyDown}
               rows={5}
               className="w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm leading-relaxed dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               placeholder={"Görev metni…\n- Madde 1\n- Madde 2"}
@@ -118,7 +104,7 @@ function AddTodoModal({ open, projects, saving, error, onClose, onSave }) {
               required
             />
             <p className="mt-1 text-xs text-zinc-400">
-              Enter kaydeder, ⌘/Ctrl+Enter alt satıra geçer. Satır başında - ile madde ekleyebilirsiniz.
+              Enter alt satıra geçer, ⌘/Ctrl+Enter kaydeder. Satır başında - ile madde ekleyebilirsiniz.
             </p>
           </div>
           <div>
@@ -153,14 +139,30 @@ function AddTodoModal({ open, projects, saving, error, onClose, onSave }) {
   );
 }
 
-function TodoCard({ todo, projectName, onComplete, onStart, dragging, ...dragProps }) {
+function TodoCard({ todo, projectName, onComplete, onStart, dragging, outdated = false, ...dragProps }) {
   return (
     <div
       {...dragProps}
-      className={`group cursor-grab rounded-lg border border-zinc-200/80 bg-white p-2.5 shadow-sm transition hover:border-zinc-300 hover:shadow active:cursor-grabbing dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600 ${dragging ? "opacity-40" : ""
-        }`}
+      className={`group cursor-grab rounded-lg border p-2.5 shadow-sm transition hover:shadow active:cursor-grabbing ${outdated
+        ? "border-amber-300/80 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/30"
+        : "border-zinc-200/80 bg-white hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600"
+        } ${dragging ? "opacity-40" : ""}`}
     >
-      <p className="text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-50">{todo.title}</p>
+      <div className="flex flex-wrap items-start gap-1.5">
+        <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-zinc-900 dark:text-zinc-50">
+          {todo.title}
+        </p>
+        {outdated && (
+          <span className="shrink-0 rounded bg-amber-200/90 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-900 dark:bg-amber-900/70 dark:text-amber-200">
+            Outdated
+          </span>
+        )}
+      </div>
+      {outdated && todo.planned_date && (
+        <p className="mt-1 text-[11px] font-medium text-amber-700/90 dark:text-amber-400/90">
+          Plan: {dayHeaderLabel(todo.planned_date)}
+        </p>
+      )}
       {projectName && (
         <p className="mt-1 truncate text-[11px] text-zinc-400">{projectName}</p>
       )}
@@ -271,6 +273,29 @@ export default function BoardTab() {
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState("");
   const [confirmAction, setConfirmAction] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(BACKLOG_SIDEBAR_KEY);
+      if (saved === "0") setSidebarOpen(false);
+      if (saved === "1") setSidebarOpen(true);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function toggleSidebar() {
+    setSidebarOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(BACKLOG_SIDEBAR_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   const projectNames = useMemo(() => {
     const map = {};
@@ -283,8 +308,15 @@ export default function BoardTab() {
 
   const columns = useMemo(() => {
     const scheduled = board?.scheduled || [];
+    const byBoardSort = (a, b) =>
+      (a.board_sort_order ?? 0) - (b.board_sort_order ?? 0) ||
+      (a.sort_order ?? 0) - (b.sort_order ?? 0);
+
     return (board?.week || []).map((dateStr) => {
-      const dayTodos = scheduled.filter((t) => t.planned_date === dateStr);
+      const dayTodos = scheduled
+        .filter((t) => t.planned_date === dateStr)
+        .slice()
+        .sort(byBoardSort);
       return {
         date: dateStr,
         isToday: dateStr === today,
@@ -295,15 +327,51 @@ export default function BoardTab() {
     });
   }, [board, today]);
 
-  async function handleDrop(target) {
+  async function handleDrop(target, beforeTodoId = null) {
     if (!dragId) return;
-    if (target === "backlog") {
-      await assignTodo({ todoId: dragId, toBacklog: true });
-    } else {
-      await assignTodo({ todoId: dragId, plannedDate: target });
-    }
+    const movedId = dragId;
     setDragId(null);
     setOverTarget(null);
+
+    if (target === "backlog") {
+      try {
+        await assignTodo({ todoId: movedId, toBacklog: true });
+      } catch {
+        /* toast + revert provider'da */
+      }
+      return;
+    }
+
+    const orderedIds = (() => {
+      const col = columns.find((c) => c.date === target);
+      const others = (col?.active || []).map((t) => t.id).filter((id) => id !== movedId);
+      if (beforeTodoId && beforeTodoId !== movedId && others.includes(beforeTodoId)) {
+        const idx = others.indexOf(beforeTodoId);
+        return [...others.slice(0, idx), movedId, ...others.slice(idx)];
+      }
+      return [...others, movedId];
+    })();
+
+    const col = columns.find((c) => c.date === target);
+    const currentOrder = (col?.active || []).map((t) => t.id);
+    const alreadyOnDay = currentOrder.includes(movedId);
+
+    if (alreadyOnDay && currentOrder.join() === orderedIds.join()) {
+      return;
+    }
+
+    try {
+      await assignTodo({ todoId: movedId, plannedDate: target, orderedIds });
+    } catch {
+      /* toast + revert provider'da */
+    }
+  }
+
+  function isOverSlot(date, beforeTodoId = null) {
+    if (!overTarget || typeof overTarget === "string") {
+      return overTarget === date && beforeTodoId == null;
+    }
+    return overTarget.date === date && (overTarget.beforeId || null) === (beforeTodoId || null);
   }
 
   async function handleConfirmSessionAction() {
@@ -404,123 +472,194 @@ export default function BoardTab() {
       </div> */}
 
       <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto">
-        <aside
-          className={`flex h-full w-64 shrink-0 flex-col rounded-xl border bg-zinc-100/80 p-3 dark:bg-zinc-900/60 ${overTarget === "backlog"
+        {!sidebarOpen ? (
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            title="Bekleyen işleri aç"
+            aria-label="Bekleyen işleri aç"
+            className="flex h-full w-10 shrink-0 flex-col items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100/80 py-3 text-zinc-600 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <SidebarIcon className="h-4 w-4" />
+            <span
+              className="text-[10px] font-semibold uppercase tracking-wide"
+              style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+            >
+              Bekleyen
+            </span>
+          </button>
+        ) : (
+          <aside
+            className={`flex h-full w-64 shrink-0 flex-col rounded-xl border bg-zinc-100/80 p-3 dark:bg-zinc-900/60 ${overTarget === "backlog"
               ? "border-emerald-400 ring-2 ring-emerald-300/50 dark:border-emerald-500"
               : "border-zinc-200 dark:border-zinc-700"
-            }`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOverTarget("backlog");
-          }}
-          onDragLeave={() => setOverTarget(null)}
-          onDrop={(e) => {
-            e.preventDefault();
-            handleDrop("backlog");
-          }}
-        >
-          <div className="mb-3 flex shrink-0 items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Bekleyen işler</h3>
-              <p className="text-[11px] text-zinc-500">Proje todoları · sürükle bırak</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setAddError("");
-                setAddOpen(true);
-              }}
-              disabled={!allProjects.length}
-              title="Todo ekle"
-              aria-label="Todo ekle"
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                <path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
-            {projectsWithTodos.map((project) => {
-              const open = Boolean(openProjects[project.id]);
-              return (
-                <div
-                  key={project.id}
-                  className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+              }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setOverTarget("backlog");
+            }}
+            onDragLeave={() => setOverTarget(null)}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDrop("backlog");
+            }}
+          >
+            <div className="mb-3 flex shrink-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Bekleyen işler</h3>
+                <p className="text-[11px] text-zinc-500">Proje todoları · sürükle bırak</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddError("");
+                    setAddOpen(true);
+                  }}
+                  disabled={!allProjects.length}
+                  title="Todo ekle"
+                  aria-label="Todo ekle"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-40 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleProject(project.id)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/80"
+                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                    <path d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  title="Bekleyen işleri gizle"
+                  aria-label="Bekleyen işleri gizle"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                >
+                  <SidebarIcon className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+              {projectsWithTodos.map((project) => {
+                const open = Boolean(openProjects[project.id]);
+                return (
+                  <div
+                    key={project.id}
+                    className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
                   >
-                    <svg
-                      className={`h-3.5 w-3.5 shrink-0 text-zinc-400 transition-transform ${open ? "rotate-90" : ""}`}
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
+                    <button
+                      type="button"
+                      onClick={() => toggleProject(project.id)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/80"
                     >
-                      <path
-                        fillRule="evenodd"
-                        d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 01-1.06-.02z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                      {project.name}
-                    </span>
-                    <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800">
-                      {project.todos.length}
-                    </span>
-                  </button>
-                  {open && (
-                    <div className="space-y-1.5 border-t border-zinc-100 px-2 py-2 dark:border-zinc-800">
-                      {project.todos.map((todo) => (
-                        <TodoCard
-                          key={todo.id}
-                          todo={todo}
-                          dragging={dragId === todo.id}
-                          draggable
-                          onDragStart={() => setDragId(todo.id)}
-                          onDragEnd={() => {
-                            setDragId(null);
-                            setOverTarget(null);
-                          }}
-                          onStart={() => beginSession({ project_todo_id: todo.id })}
-                          onComplete={() => assignTodo({ todoId: todo.id, isCompleted: true })}
+                      <svg
+                        className={`h-3.5 w-3.5 shrink-0 text-zinc-400 transition-transform ${open ? "rotate-90" : ""}`}
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 01-1.06-.02z"
+                          clipRule="evenodd"
                         />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                      </svg>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                        {project.name}
+                      </span>
+                      <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-500 dark:bg-zinc-800">
+                        {project.todos.length}
+                      </span>
+                    </button>
+                    {open && (
+                      <div className="space-y-2 border-t border-zinc-100 px-2 py-2 dark:border-zinc-800">
+                        {(() => {
+                          const fresh = project.todos.filter((t) => !t.planned_date);
+                          const outdated = project.todos
+                            .filter((t) => t.planned_date)
+                            .sort((a, b) => String(a.planned_date).localeCompare(String(b.planned_date)));
+                          return (
+                            <>
+                              {outdated.length > 0 && (
+                                <div className="space-y-1.5">
+                                  <p className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                                    Outdated · {outdated.length}
+                                  </p>
+                                  {outdated.map((todo) => (
+                                    <TodoCard
+                                      key={todo.id}
+                                      todo={todo}
+                                      outdated
+                                      dragging={dragId === todo.id}
+                                      draggable
+                                      onDragStart={() => setDragId(todo.id)}
+                                      onDragEnd={() => {
+                                        setDragId(null);
+                                        setOverTarget(null);
+                                      }}
+                                      onStart={() => beginSession({ project_todo_id: todo.id })}
+                                      onComplete={() => assignTodo({ todoId: todo.id, isCompleted: true })}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                              {fresh.length > 0 && (
+                                <div className="space-y-1.5">
+                                  {outdated.length > 0 && (
+                                    <p className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                                      Yeni
+                                    </p>
+                                  )}
+                                  {fresh.map((todo) => (
+                                    <TodoCard
+                                      key={todo.id}
+                                      todo={todo}
+                                      dragging={dragId === todo.id}
+                                      draggable
+                                      onDragStart={() => setDragId(todo.id)}
+                                      onDragEnd={() => {
+                                        setDragId(null);
+                                        setOverTarget(null);
+                                      }}
+                                      onStart={() => beginSession({ project_todo_id: todo.id })}
+                                      onComplete={() => assignTodo({ todoId: todo.id, isCompleted: true })}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
-            {!projectsWithTodos.length && (
-              <p className="rounded-lg border border-dashed border-zinc-300 px-3 py-6 text-center text-xs text-zinc-400 dark:border-zinc-700">
-                Bekleyen proje todosu yok
-              </p>
-            )}
+              {!projectsWithTodos.length && (
+                <p className="rounded-lg border border-dashed border-zinc-300 px-3 py-6 text-center text-xs text-zinc-400 dark:border-zinc-700">
+                  Bekleyen proje todosu yok
+                </p>
+              )}
 
-            {emptyProjects.length > 0 && (
-              <p className="px-1 pt-2 text-[10px] text-zinc-400">
-                {emptyProjects.length} proje boş (todo yok)
-              </p>
-            )}
-          </div>
-        </aside>
+              {emptyProjects.length > 0 && (
+                <p className="px-1 pt-2 text-[10px] text-zinc-400">
+                  {emptyProjects.length} proje boş (todo yok)
+                </p>
+              )}
+            </div>
+          </aside>
+        )}
 
         <div className="flex h-full min-w-0 flex-1 gap-2">
           {columns.map((col) => (
             <div
               key={col.date}
               className={`flex h-full w-0 min-w-[9.5rem] flex-1 flex-col rounded-xl border p-2.5 ${col.isToday
-                  ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
-                  : "border-zinc-200 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/40"
-                } ${overTarget === col.date ? "ring-2 ring-emerald-400/60" : ""
+                ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20"
+                : "border-zinc-200 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/40"
+                } ${isOverSlot(col.date) ? "ring-2 ring-emerald-400/60" : ""
                 }`}
               onDragOver={(e) => {
                 e.preventDefault();
-                setOverTarget(col.date);
+                setOverTarget({ date: col.date, beforeId: null });
               }}
               onDragLeave={() => setOverTarget(null)}
               onDrop={(e) => {
@@ -545,28 +684,46 @@ export default function BoardTab() {
                 <p className="mt-0.5 text-[11px] text-zinc-500">{formatHoursShort(col.minutes)} aktif</p>
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+              <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
                 {col.active.map((todo) => (
-                  <TodoCard
+                  <div
                     key={todo.id}
-                    todo={todo}
-                    projectName={projectNames[todo.project_id]}
-                    dragging={dragId === todo.id}
-                    draggable
-                    onDragStart={() => setDragId(todo.id)}
-                    onDragEnd={() => {
-                      setDragId(null);
-                      setOverTarget(null);
+                    className="relative"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (dragId === todo.id) return;
+                      setOverTarget({ date: col.date, beforeId: todo.id });
                     }}
-                    onStart={() => beginSession({ project_todo_id: todo.id })}
-                    onComplete={() =>
-                      assignTodo({ todoId: todo.id, plannedDate: col.date, isCompleted: true })
-                    }
-                  />
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDrop(col.date, todo.id);
+                    }}
+                  >
+                    {isOverSlot(col.date, todo.id) && dragId !== todo.id && (
+                      <div className="pointer-events-none absolute inset-x-1 -top-1 z-10 h-0.5 rounded-full bg-emerald-500" />
+                    )}
+                    <TodoCard
+                      todo={todo}
+                      projectName={projectNames[todo.project_id]}
+                      dragging={dragId === todo.id}
+                      draggable
+                      onDragStart={() => setDragId(todo.id)}
+                      onDragEnd={() => {
+                        setDragId(null);
+                        setOverTarget(null);
+                      }}
+                      onStart={() => beginSession({ project_todo_id: todo.id })}
+                      onComplete={() =>
+                        assignTodo({ todoId: todo.id, plannedDate: col.date, isCompleted: true })
+                      }
+                    />
+                  </div>
                 ))}
                 {!col.active.length && (
                   <div className="flex min-h-[6rem] flex-1 items-center justify-center rounded-lg border border-dashed border-zinc-200 px-2 dark:border-zinc-700">
-                    <p className="text-center text-[10px] text-zinc-400">Bırak</p>
+                    <p className="text-center text-[10px] text-zinc-400">No Todos</p>
                   </div>
                 )}
 
@@ -635,6 +792,14 @@ function PauseIcon() {
   return (
     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+    </svg>
+  );
+}
+
+function SidebarIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M3 5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2v14c0 1.1-.9 2-2 2H5c-1.1 0-2-.9-2-2V5zm2 0v14h4V5H5zm6 0v14h8V5h-8z" />
     </svg>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
+import { Toaster } from "sonner";
 import { DEEP_WORK_TABS } from "@/lib/deep-work/constants";
 import { DeepWorkProvider, useDeepWork } from "@/components/deep-work/DeepWorkProvider";
 import HomeTab from "@/components/deep-work/HomeTab";
@@ -72,6 +73,7 @@ function DeepWorkContent() {
 export default function DeepWorkShell() {
   return (
     <DeepWorkProvider>
+      <Toaster position="top-center" richColors />
       <Suspense fallback={<p className="py-12 text-center text-sm text-zinc-400">Yükleniyor…</p>}>
         <DeepWorkContent />
       </Suspense>

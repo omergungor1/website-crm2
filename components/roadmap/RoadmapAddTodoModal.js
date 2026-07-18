@@ -8,24 +8,9 @@ const TODO_COLORS = [
   { id: "rose", label: "Kırmızı", dot: "bg-rose-500" },
 ];
 
-function handleTodoTextareaKeyDown(e, value, setValue) {
+function handleTodoTextareaKeyDown(e) {
   if (e.key !== "Enter") return;
-
-  if (e.metaKey || e.ctrlKey) {
-    e.preventDefault();
-    const el = e.currentTarget;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const next = `${value.slice(0, start)}\n${value.slice(end)}`;
-    setValue(next);
-    requestAnimationFrame(() => {
-      const pos = start + 1;
-      el.selectionStart = pos;
-      el.selectionEnd = pos;
-    });
-    return;
-  }
-
+  if (!(e.metaKey || e.ctrlKey)) return;
   e.preventDefault();
   e.currentTarget.form?.requestSubmit();
 }
@@ -92,7 +77,7 @@ export default function RoadmapAddTodoModal({ open, projectName, saving, error, 
             <textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => handleTodoTextareaKeyDown(e, title, setTitle)}
+              onKeyDown={handleTodoTextareaKeyDown}
               rows={5}
               className="w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm leading-relaxed dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               placeholder={"Görev metni…\n- Madde 1\n- Madde 2"}
@@ -100,7 +85,7 @@ export default function RoadmapAddTodoModal({ open, projectName, saving, error, 
               required
             />
             <p className="mt-1 text-xs text-zinc-400">
-              Enter kaydeder, ⌘/Ctrl+Enter alt satıra geçer. Satır başında - ile madde ekleyebilirsiniz.
+              Enter alt satıra geçer, ⌘/Ctrl+Enter kaydeder. Satır başında - ile madde ekleyebilirsiniz.
             </p>
           </div>
           <div>

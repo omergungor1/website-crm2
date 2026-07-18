@@ -32,6 +32,7 @@ create table project_todos (
   title text not null,
   is_completed boolean default false,
   sort_order integer not null default 0,
+  board_sort_order integer not null default 0,
 
   color text check (color is null or color in ('blue','amber','rose')),
   is_archived boolean default false,
@@ -50,9 +51,12 @@ create table project_todos (
 -- alter table project_todos add column if not exists is_deleted boolean not null default false;
 -- alter table project_todos add column if not exists deleted_at timestamptz;
 -- alter table project_todos add column if not exists is_later boolean not null default false;
+-- alter table project_todos add column if not exists board_sort_order integer not null default 0;
 
 create index idx_project_todos_project_id on project_todos(project_id);
 create index idx_project_todos_project_sort on project_todos(project_id, sort_order);
+create index idx_project_todos_planned_board_sort on project_todos(planned_date, board_sort_order)
+  where is_deleted = false and planned_date is not null;
 create index idx_project_todos_active on project_todos(project_id) where is_deleted = false;
 
 -- Kullanıcı öncelikli hedefleri (dashboard hedef yönetimi)

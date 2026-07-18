@@ -23,8 +23,12 @@ create table if not exists public.project_todos (
 
 alter table public.project_todos add column if not exists planned_date date;
 alter table public.project_todos add column if not exists completed_at timestamptz;
+alter table public.project_todos add column if not exists board_sort_order integer not null default 0;
 
 create index if not exists idx_project_todos_planned_date on public.project_todos(planned_date);
+create index if not exists idx_project_todos_planned_board_sort
+  on public.project_todos(planned_date, board_sort_order)
+  where is_deleted = false and planned_date is not null;
 
 create table if not exists public.deep_work_tasks (
   id uuid primary key default gen_random_uuid(),

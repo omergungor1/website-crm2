@@ -4,9 +4,24 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Toaster, toast } from "sonner";
 
 const TODO_COLORS = [
-  { id: "blue", label: "Mavi", dot: "bg-sky-500" },
-  { id: "amber", label: "Sarı", dot: "bg-amber-500" },
-  { id: "rose", label: "Kırmızı", dot: "bg-rose-500" },
+  {
+    id: "blue",
+    label: "Mavi",
+    dot: "bg-sky-500",
+    row: "border-sky-200/90 bg-sky-50 dark:border-sky-900/80 dark:bg-sky-950/45",
+  },
+  {
+    id: "amber",
+    label: "Sarı",
+    dot: "bg-amber-500",
+    row: "border-amber-200/90 bg-amber-50 dark:border-amber-900/80 dark:bg-amber-950/40",
+  },
+  {
+    id: "rose",
+    label: "Kırmızı",
+    dot: "bg-rose-500",
+    row: "border-rose-200/90 bg-rose-50 dark:border-rose-900/80 dark:bg-rose-950/40",
+  },
 ];
 
 function getColorMeta(colorId) {
@@ -43,24 +58,9 @@ function TodoTitleContent({ title }) {
   );
 }
 
-function handleTodoTextareaKeyDown(e, value, setValue) {
+function handleTodoTextareaKeyDown(e) {
   if (e.key !== "Enter") return;
-
-  if (e.metaKey || e.ctrlKey) {
-    e.preventDefault();
-    const el = e.currentTarget;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
-    const next = `${value.slice(0, start)}\n${value.slice(end)}`;
-    setValue(next);
-    requestAnimationFrame(() => {
-      const pos = start + 1;
-      el.selectionStart = pos;
-      el.selectionEnd = pos;
-    });
-    return;
-  }
-
+  if (!(e.metaKey || e.ctrlKey)) return;
   e.preventDefault();
   e.currentTarget.form?.requestSubmit();
 }
@@ -87,9 +87,8 @@ function ColorPicker({ value, onChange, size = "md" }) {
             title={color.label}
             aria-label={color.label}
             onClick={() => onChange(selected ? null : color.id)}
-            className={`${btnSize} rounded-full ${color.dot} transition-transform hover:scale-110 ${
-              selected ? "ring-2 ring-zinc-900 ring-offset-2 dark:ring-zinc-100 dark:ring-offset-zinc-900" : ""
-            }`}
+            className={`${btnSize} rounded-full ${color.dot} transition-transform hover:scale-110 ${selected ? "ring-2 ring-zinc-900 ring-offset-2 dark:ring-zinc-100 dark:ring-offset-zinc-900" : ""
+              }`}
           />
         );
       })}
@@ -148,11 +147,10 @@ function TodoRowActions({
 
   return (
     <div
-      className={`ml-auto flex shrink-0 items-center gap-0.5 transition-opacity duration-150 ${
-        open
-          ? "opacity-100"
-          : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
-      }`}
+      className={`ml-auto flex shrink-0 items-center gap-0.5 transition-opacity duration-150 ${open
+        ? "opacity-100"
+        : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+        }`}
     >
       <button
         type="button"
@@ -198,11 +196,10 @@ function TodoRowActions({
                     title={color.label}
                     aria-label={`${color.label} yap`}
                     onClick={() => run(() => onColorChange(todo, color.id))}
-                    className={`h-6 w-6 rounded-full ${color.dot} hover:scale-110 ${
-                      todo.color === color.id
-                        ? "ring-2 ring-zinc-400 ring-offset-1 dark:ring-offset-zinc-900"
-                        : ""
-                    }`}
+                    className={`h-6 w-6 rounded-full ${color.dot} hover:scale-110 ${todo.color === color.id
+                      ? "ring-2 ring-zinc-400 ring-offset-1 dark:ring-offset-zinc-900"
+                      : ""
+                      }`}
                   />
                 ))}
                 {todo.color && (
@@ -368,13 +365,13 @@ function TodoEditModal({ todo, saving, onClose, onSave }) {
             <textarea
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => handleTodoTextareaKeyDown(e, title, setTitle)}
+              onKeyDown={handleTodoTextareaKeyDown}
               rows={5}
               className="w-full resize-y rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm leading-relaxed dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
               placeholder={"Görev metni…\n- Madde 1\n- Madde 2"}
               autoFocus
             />
-            <p className="mt-1 text-xs text-zinc-400">Enter kaydeder, ⌘/Ctrl+Enter alt satıra geçer. Satır başında - ile madde ekleyebilirsiniz.</p>
+            <p className="mt-1 text-xs text-zinc-400">Enter alt satıra geçer, ⌘/Ctrl+Enter kaydeder. Satır başında - ile madde ekleyebilirsiniz.</p>
           </div>
           <div>
             <label className="mb-2 block text-xs font-medium text-zinc-500">Renk</label>
@@ -783,13 +780,16 @@ export default function TodoListTab({ projectId }) {
         onDragOver={draggable ? (e) => handleDragOver(e, index) : undefined}
         onDrop={draggable ? (e) => handleDrop(e, index) : undefined}
         onDragEnd={draggable ? handleDragEnd : undefined}
-        className={`group flex items-start gap-2 rounded-xl border border-zinc-200 bg-white px-2 py-2 transition-all sm:gap-3 sm:px-3 dark:border-zinc-700 dark:bg-zinc-900 ${
-          isDragging
-            ? "opacity-50"
-            : isOver
-              ? "ring-2 ring-zinc-200 dark:ring-zinc-700"
-              : ""
-        } ${todo.is_archived || todo.is_later ? "opacity-80" : ""}`}
+        className={`group flex items-start gap-2 rounded-xl border px-2 py-2 transition-all sm:gap-3 sm:px-3 ${
+          colorMeta
+            ? colorMeta.row
+            : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+        } ${isDragging
+          ? "opacity-50"
+          : isOver
+            ? "ring-2 ring-zinc-300 dark:ring-zinc-600"
+            : ""
+          } ${todo.is_archived || todo.is_later ? "opacity-80" : ""}`}
       >
         {draggable ? (
           <button
@@ -813,20 +813,12 @@ export default function TodoListTab({ projectId }) {
             aria-label={todo.is_completed ? "Tamamlanmadı olarak işaretle" : "Tamamlandı olarak işaretle"}
           />
 
-          {colorMeta && (
-            <span
-              title={colorMeta.label}
-              aria-hidden
-              className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${colorMeta.dot}`}
-            />
-          )}
-
           <span
-            className={`min-w-0 flex-1 text-sm leading-relaxed select-none ${
-              todo.is_completed
-                ? "text-zinc-400 line-through dark:text-zinc-500"
-                : "text-zinc-900 dark:text-zinc-100"
-            }`}
+            title={colorMeta?.label}
+            className={`min-w-0 flex-1 text-sm leading-relaxed select-none ${todo.is_completed
+              ? "text-zinc-400 line-through dark:text-zinc-500"
+              : "text-zinc-900 dark:text-zinc-100"
+              }`}
           >
             <TodoTitleContent title={todo.title} />
           </span>
@@ -883,7 +875,7 @@ export default function TodoListTab({ projectId }) {
         <textarea
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
-          onKeyDown={(e) => handleTodoTextareaKeyDown(e, newTitle, setNewTitle)}
+          onKeyDown={handleTodoTextareaKeyDown}
           placeholder={"Yeni todo…\n- Madde 1\n- Madde 2"}
           rows={3}
           className={inputCls}
