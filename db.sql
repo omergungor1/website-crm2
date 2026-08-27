@@ -59,6 +59,31 @@ create index idx_project_todos_planned_board_sort on project_todos(planned_date,
   where is_deleted = false and planned_date is not null;
 create index idx_project_todos_active on project_todos(project_id) where is_deleted = false;
 
+-- Site geneli todolar (projeden bağımsız, kullanıcıya ait)
+create table site_todos (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  title text not null,
+  is_completed boolean default false,
+  sort_order integer not null default 0,
+
+  color text check (color is null or color in ('blue','amber','rose')),
+  is_archived boolean default false,
+  is_later boolean not null default false,
+  is_deleted boolean not null default false,
+  deleted_at timestamptz,
+
+  completed_at timestamptz,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index idx_site_todos_user_id on site_todos(user_id);
+create index idx_site_todos_user_sort on site_todos(user_id, sort_order);
+create index idx_site_todos_active on site_todos(user_id) where is_deleted = false;
+
 -- Kullanıcı öncelikli hedefleri (dashboard hedef yönetimi)
 create table user_goals (
   id uuid primary key default uuid_generate_v4(),
@@ -1084,6 +1109,58 @@ create table project_roadmaps (
 create index idx_project_roadmaps_updated_at on project_roadmaps(updated_at desc);
 
 -- =========================
+-- RoadMap Snapshots
+-- =========================
+
+create table roadmap_snapshots (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid references projects(id) on delete cascade,
+
+  name text,
+  storage_path text not null,
+  image_url text not null,
+  width integer,
+  height integer,
+  zoom numeric(4,2),
+  scroll_x integer,
+  scroll_y integer,
+
+  created_at timestamptz not null default now()
+);
+
+create index idx_roadmap_snapshots_user on roadmap_snapshots(user_id, created_at desc);
+create index idx_roadmap_snapshots_project on roadmap_snapshots(project_id, created_at desc) where project_id is not null;
+
+-- =========================
+-- RoadMap Revision History
+-- =========================
+
+create table roadmap_revisions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid references projects(id) on delete cascade,
+  canvas_data jsonb not null,
+  node_count integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index idx_roadmap_revisions_user_created on roadmap_revisions(user_id, created_at desc) where project_id is null;
+create index idx_roadmap_revisions_project_created on roadmap_revisions(project_id, created_at desc) where project_id is not null;
+
+create table roadmap_daily_backups (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid references projects(id) on delete cascade,
+  backup_date date not null,
+  canvas_data jsonb not null,
+  node_count integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create unique index idx_roadmap_daily_backups_user_date on roadmap_daily_backups(user_id, backup_date) where project_id is null;
+create unique index idx_roadmap_daily_backups_project_date on roadmap_daily_backups(project_id, backup_date) where project_id is not null;
+
 -- RoadMap migration (mevcut tablolar için — SQL Editor'de çalıştırın)
 -- Tabloda kayıt varken Table Editor default alanı hata verebilir; bu blok güvenlidir.
 -- Mevcut satırlar değişmez; yalnızca yeni kayıtların varsayılanı güncellenir.
@@ -1190,4 +1267,43 @@ create policy "copyfast_storage_delete"
 -- insert into storage.buckets ... (yukarıdaki insert)
 -- drop/create policy ... (yukarıdaki storage politikaları)
 -- update storage.buckets set file_size_limit = 10485760 where id = 'crm-copyfast';
+
+-- =========================
+-- RoadMap Snapshots Storage (crm-roadmap-snapshots bucket)
+-- =========================
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'crm-roadmap-snapshots',
+  'crm-roadmap-snapshots',
+  true,
+  20971520,
+  array['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+)
+on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "roadmap_snapshots_storage_select" on storage.objects;
+drop policy if exists "roadmap_snapshots_storage_insert" on storage.objects;
+drop policy if exists "roadmap_snapshots_storage_update" on storage.objects;
+drop policy if exists "roadmap_snapshots_storage_delete" on storage.objects;
+
+create policy "roadmap_snapshots_storage_select"
+  on storage.objects for select
+  using (bucket_id = 'crm-roadmap-snapshots');
+
+create policy "roadmap_snapshots_storage_insert"
+  on storage.objects for insert
+  with check (bucket_id = 'crm-roadmap-snapshots');
+
+create policy "roadmap_snapshots_storage_update"
+  on storage.objects for update
+  using (bucket_id = 'crm-roadmap-snapshots')
+  with check (bucket_id = 'crm-roadmap-snapshots');
+
+create policy "roadmap_snapshots_storage_delete"
+  on storage.objects for delete
+  using (bucket_id = 'crm-roadmap-snapshots');
 

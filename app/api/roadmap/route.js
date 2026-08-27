@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/isAdmin";
 import { emptyCanvasData } from "@/lib/roadmap/constants";
 import { normalizeCanvasData } from "@/lib/roadmap/utils";
+import { backupRoadmapRevision } from "@/lib/roadmap/revisionsServer";
 
 export async function GET() {
   const supabase = await createClient();
@@ -58,5 +59,8 @@ export async function PUT(request) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await backupRoadmapRevision(supabase, { userId: user.id, canvasData: canvas_data });
+
   return NextResponse.json(data);
 }

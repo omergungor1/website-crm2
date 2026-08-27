@@ -452,7 +452,14 @@ function TodoDeleteConfirmModal({ todo, deleting, onClose, onConfirm }) {
   );
 }
 
-export default function TodoListTab({ projectId }) {
+export default function TodoListTab({
+  projectId,
+  apiBase,
+  title = "Todo List",
+  description = "Proje görevlerini ekleyin, renklendirin, tamamlayın ve sürükleyerek sıralayın.",
+  showHeading = true,
+}) {
+  const base = apiBase || `/api/projects/${projectId}/todos`;
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState("");
@@ -486,17 +493,18 @@ export default function TodoListTab({ projectId }) {
   }
 
   useEffect(() => {
-    fetch(`/api/projects/${projectId}/todos`)
+    setLoading(true);
+    fetch(base)
       .then((r) => r.json())
       .then((data) => {
         setTodos(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [projectId]);
+  }, [base]);
 
   async function patchTodo(todoId, payload) {
-    const res = await fetch(`/api/projects/${projectId}/todos/${todoId}`, {
+    const res = await fetch(`${base}/${todoId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -518,7 +526,7 @@ export default function TodoListTab({ projectId }) {
     setAdding(true);
     setError("");
     try {
-      const res = await fetch(`/api/projects/${projectId}/todos`, {
+      const res = await fetch(base, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, color: newColor }),
@@ -648,7 +656,7 @@ export default function TodoListTab({ projectId }) {
     setError("");
     setTodos((prev) => prev.filter((t) => t.id !== todo.id));
     try {
-      const res = await fetch(`/api/projects/${projectId}/todos/${todo.id}`, { method: "DELETE" });
+      const res = await fetch(`${base}/${todo.id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Silinemedi");
       setDeletingTodo(null);
@@ -677,7 +685,7 @@ export default function TodoListTab({ projectId }) {
 
   async function persistOrder(nextTodos) {
     setReordering(true);
-    const res = await fetch(`/api/projects/${projectId}/todos/reorder`, {
+    const res = await fetch(`${base}/reorder`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ordered_ids: nextTodos.map((t) => t.id) }),
@@ -687,7 +695,7 @@ export default function TodoListTab({ projectId }) {
 
     if (!res.ok) {
       setError(data.error || "Sıralama kaydedilemedi");
-      fetch(`/api/projects/${projectId}/todos`)
+      fetch(base)
         .then((r) => r.json())
         .then((list) => setTodos(Array.isArray(list) ? list : []));
       return;
@@ -859,17 +867,24 @@ export default function TodoListTab({ projectId }) {
   return (
     <div className="space-y-4">
       <Toaster position="top-center" richColors={false} />
-      <div>
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">Todo List</h2>
-        <p className="text-sm text-zinc-500">
-          Proje görevlerini ekleyin, renklendirin, tamamlayın ve sürükleyerek sıralayın.
-          {activeTodos.length > 0 && (
-            <span className="ml-1 text-zinc-400">
-              ({completedCount}/{activeTodos.length} tamamlandı)
-            </span>
-          )}
+      {showHeading && (
+        <div>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{title}</h2>
+          <p className="text-sm text-zinc-500">
+            {description}
+            {activeTodos.length > 0 && (
+              <span className="ml-1 text-zinc-400">
+                ({completedCount}/{activeTodos.length} tamamlandı)
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+      {!showHeading && activeTodos.length > 0 && (
+        <p className="text-sm text-zinc-400">
+          {completedCount}/{activeTodos.length} tamamlandı
         </p>
-      </div>
+      )}
 
       <form onSubmit={handleAdd} className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <textarea

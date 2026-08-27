@@ -8,14 +8,17 @@ import RoadmapDeleteConfirmModal from "./RoadmapDeleteConfirmModal";
 export default function AnnotationSettingsModal({ annotation, onClose, onChange, onDelete }) {
   const [draft, setDraft] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [underlineOpen, setUnderlineOpen] = useState(false);
 
   useEffect(() => {
     if (annotation) {
       setDraft({ ...annotation });
       setShowDeleteConfirm(false);
+      setUnderlineOpen(Boolean(annotation.underlineEnabled));
     } else {
       setDraft(null);
       setShowDeleteConfirm(false);
+      setUnderlineOpen(false);
     }
   }, [annotation]);
 
@@ -94,6 +97,127 @@ export default function AnnotationSettingsModal({ annotation, onClose, onChange,
                 />
               </div>
             )}
+
+            {draft.type === "heading" ? (
+              <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+                <button
+                  type="button"
+                  onClick={() => setUnderlineOpen((open) => !open)}
+                  className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-medium text-zinc-800 transition hover:bg-zinc-50 dark:text-zinc-100 dark:hover:bg-zinc-800/60"
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-0.5 w-5 rounded-full"
+                      style={{ backgroundColor: draft.color, height: Math.max(2, draft.underlineThickness || 2) }}
+                    />
+                    Alt çizgi
+                  </span>
+                  <span className="text-xs font-normal text-zinc-500">
+                    {draft.underlineEnabled ? "Açık" : "Kapalı"}
+                  </span>
+                </button>
+
+                {underlineOpen ? (
+                  <div className="space-y-3 border-t border-zinc-200 px-3 py-3 dark:border-zinc-700">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(draft.underlineEnabled)}
+                        onChange={(e) => patch({ underlineEnabled: e.target.checked })}
+                        className="rounded border-zinc-300"
+                      />
+                      Alt çizgi göster
+                    </label>
+
+                    {draft.underlineEnabled ? (
+                      <>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-medium text-zinc-500">Uzunluk</label>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => patch({ underlineLengthMode: "auto" })}
+                              className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition ${
+                                draft.underlineLengthMode !== "fixed"
+                                  ? "border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                  : "border-zinc-200 text-zinc-600 dark:border-zinc-600 dark:text-zinc-300"
+                              }`}
+                            >
+                              Otomatik
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => patch({ underlineLengthMode: "fixed" })}
+                              className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition ${
+                                draft.underlineLengthMode === "fixed"
+                                  ? "border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                  : "border-zinc-200 text-zinc-600 dark:border-zinc-600 dark:text-zinc-300"
+                              }`}
+                            >
+                              Özel (px)
+                            </button>
+                          </div>
+                          {draft.underlineLengthMode === "fixed" ? (
+                            <input
+                              type="number"
+                              min={8}
+                              value={Math.round(draft.underlineLength || 120)}
+                              onChange={(e) =>
+                                patch({ underlineLength: Math.max(8, Number(e.target.value) || 8) })
+                              }
+                              className="mt-2 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+                            />
+                          ) : (
+                            <p className="mt-1.5 text-xs text-zinc-400">Metin genişliği kadar uzar</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-zinc-500">
+                            Kalınlık ({draft.underlineThickness || 2}px)
+                          </label>
+                          <input
+                            type="range"
+                            min={1}
+                            max={12}
+                            value={draft.underlineThickness || 2}
+                            onChange={(e) => patch({ underlineThickness: Number(e.target.value) })}
+                            className="w-full"
+                          />
+                        </div>
+
+                        <div className="rounded-lg bg-zinc-50 px-3 py-3 dark:bg-zinc-950">
+                          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                            Önizleme
+                          </p>
+                          <div className="flex justify-center">
+                            <div className="inline-flex max-w-full flex-col items-center">
+                              <p
+                                className="text-center font-bold leading-tight"
+                                style={{ color: draft.color, fontSize: draft.fontSize }}
+                              >
+                                {draft.title || "Başlık"}
+                              </p>
+                              <span
+                                className="mt-1 rounded-full"
+                                style={{
+                                  width:
+                                    draft.underlineLengthMode === "fixed"
+                                      ? `${Math.max(8, draft.underlineLength || 120)}px`
+                                      : "100%",
+                                  height: `${Math.max(1, draft.underlineThickness || 2)}px`,
+                                  backgroundColor: draft.color,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {!isLine && (
               <div className="grid grid-cols-2 gap-3">

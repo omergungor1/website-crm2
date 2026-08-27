@@ -6,6 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import ProjectSwitcher from "@/components/ProjectSwitcher";
+import SiteTodoModal from "@/components/SiteTodoModal";
 import { useDeepWorkSessionOptional } from "@/components/deep-work/DeepWorkSessionProvider";
 
 function DefaultAvatarIcon({ className }) {
@@ -48,6 +49,14 @@ function CrmIcon({ className }) {
   );
 }
 
+function TodoIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+    </svg>
+  );
+}
+
 function iconNavClass(active) {
   return `inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${active
     ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
@@ -70,6 +79,7 @@ export default function DashboardHeader({ user, admin = false }) {
   const projectsCloseTimer = useRef(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
+  const [todoModalOpen, setTodoModalOpen] = useState(false);
   const session = useDeepWorkSessionOptional();
 
 
@@ -106,12 +116,13 @@ export default function DashboardHeader({ user, admin = false }) {
   }, []);
 
   useEffect(() => {
-    if (!userMenuOpen && !projectsMenuOpen) return;
+    if (!userMenuOpen && !projectsMenuOpen && !todoModalOpen) return;
 
     function onKeyDown(e) {
       if (e.key === "Escape") {
         setUserMenuOpen(false);
         setProjectsMenuOpen(false);
+        setTodoModalOpen(false);
       }
     }
 
@@ -130,7 +141,7 @@ export default function DashboardHeader({ user, admin = false }) {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [userMenuOpen, projectsMenuOpen]);
+  }, [userMenuOpen, projectsMenuOpen, todoModalOpen]);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -229,6 +240,21 @@ export default function DashboardHeader({ user, admin = false }) {
             >
               <DeepWorkIcon className="h-5 w-5" />
             </Link>
+            <button
+              type="button"
+              className={iconNavClass(todoModalOpen)}
+              title="Todo"
+              aria-label="Todo"
+              aria-expanded={todoModalOpen}
+              aria-haspopup="dialog"
+              onClick={() => {
+                setUserMenuOpen(false);
+                setProjectsMenuOpen(false);
+                setTodoModalOpen(true);
+              }}
+            >
+              <TodoIcon className="h-5 w-5" />
+            </button>
             <Link
               href="/dashboard/roadmap"
               className={iconNavClass(isRoadmapActive)}
@@ -338,6 +364,8 @@ export default function DashboardHeader({ user, admin = false }) {
           </div>
         )}
       </div>
+
+      <SiteTodoModal open={todoModalOpen} onClose={() => setTodoModalOpen(false)} />
     </header>
   );
 }

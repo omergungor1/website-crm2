@@ -7,7 +7,6 @@ import {
   CANVAS_HEIGHT,
   CANVAS_WIDTH,
   DEFAULT_COLOR,
-  emptyCanvasData,
   getNodeTypeDef,
   migrateAnchor,
 } from "@/lib/roadmap/constants";
@@ -15,7 +14,9 @@ import {
   buildArrowPath,
   buildLinePath,
   createAnnotation,
+  isBackBoxType,
   isLineType,
+  isResizableBoxType,
 } from "@/lib/roadmap/annotations";
 import {
   buildEdgePath,
@@ -26,11 +27,17 @@ import {
   normalizeCanvasData,
 } from "@/lib/roadmap/utils";
 import AnnotationSettingsModal from "./AnnotationSettingsModal";
+import RoadmapImageModal from "./RoadmapImageModal";
 import NodeSettingsModal from "./NodeSettingsModal";
 import RoadmapAddTodoModal from "./RoadmapAddTodoModal";
 import RoadmapAnnotationView from "./RoadmapAnnotationView";
 import RoadmapNodeBox from "./RoadmapNodeBox";
+import RoadmapRevisionsModal from "./RoadmapRevisionsModal";
+import RoadmapSnapshotsModal from "./RoadmapSnapshotsModal";
 import RoadmapToolbox from "./RoadmapToolbox";
+import { captureRoadmapCanvas } from "@/lib/roadmap/captureViewport";
+import { buildAlignableItems, computeAlignmentMoves } from "@/lib/roadmap/alignSelection";
+import RoadmapAlignMenu from "./RoadmapAlignMenu";
 
 function countAnchorUsage(edges, nodeId, anchor) {
   return edges.filter(
@@ -43,14 +50,51 @@ function countAnchorUsage(edges, nodeId, anchor) {
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
+const DUPLICATE_OFFSET = 24;
+const MARQUEE_MIN_SIZE = 4;
+const RESIZE_MIN_SIZE = 40;
+
+function rectsIntersect(a, b) {
+  return !(
+    a.x + a.width < b.x ||
+    b.x + b.width < a.x ||
+    a.y + a.height < b.y ||
+    b.y + b.height < a.y
+  );
+}
+
+function getAnnotationBounds(annotation) {
+  if (isLineType(annotation.type)) {
+    const minX = Math.min(annotation.x1, annotation.x2);
+    const minY = Math.min(annotation.y1, annotation.y2);
+    const maxX = Math.max(annotation.x1, annotation.x2);
+    const maxY = Math.max(annotation.y1, annotation.y2);
+    const pad = Math.max(4, annotation.strokeWidth || 2);
+    return { x: minX - pad, y: minY - pad, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 };
+  }
+  return {
+    x: annotation.x,
+    y: annotation.y,
+    width: annotation.width,
+    height: annotation.height,
+  };
+}
 
 export default function RoadmapShell({ projectId = null, onBack, projectName }) {
   const apiUrl = projectId ? `/api/projects/${projectId}/roadmap` : "/api/roadmap";
+  const snapshotsApiUrl = projectId
+    ? `/api/projects/${projectId}/roadmap/snapshots`
+    : "/api/roadmap/snapshots";
+  const revisionsApiUrl = projectId
+    ? `/api/projects/${projectId}/roadmap/revisions`
+    : "/api/roadmap/revisions";
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [annotations, setAnnotations] = useState([]);
   const [viewport, setViewport] = useState({ scrollX: 0, scrollY: 0 });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [hydrated, setHydrated] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [savedFingerprint, setSavedFingerprint] = useState("");
@@ -61,6 +105,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
   const [settingsNodeId, setSettingsNodeId] = useState(null);
   const [settingsAnnotationId, setSettingsAnnotationId] = useState(null);
+  const [imageSettingsId, setImageSettingsId] = useState(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState(null);
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState([]);
@@ -68,8 +113,14 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   const [addTodoOpen, setAddTodoOpen] = useState(false);
   const [addTodoSaving, setAddTodoSaving] = useState(false);
   const [addTodoError, setAddTodoError] = useState("");
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [revisionsOpen, setRevisionsOpen] = useState(false);
+  const [snapshotCaptureMode, setSnapshotCaptureMode] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [modifierKeyHeld, setModifierKeyHeld] = useState(false);
+  const [marquee, setMarquee] = useState(null);
   const canvasRef = useRef(null);
+  const canvasCaptureRef = useRef(null);
   const saveTimerRef = useRef(null);
   const zoomRef = useRef(1);
   const pendingZoomScrollRef = useRef(null);
@@ -82,6 +133,115 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     setSelectedNodeIds([]);
     setSelectedAnnotationIds([]);
     setSelectedEdgeId(null);
+  }
+
+  const clientToCanvas = useCallback((clientX, clientY) => {
+    const el = canvasRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    const z = zoomRef.current || 1;
+    return {
+      x: (clientX - rect.left + el.scrollLeft) / z,
+      y: (clientY - rect.top + el.scrollTop) / z,
+    };
+  }, []);
+
+  const finishMarqueeSelection = useCallback(
+    (marqueeState) => {
+      const rect = {
+        x: Math.min(marqueeState.startX, marqueeState.currentX),
+        y: Math.min(marqueeState.startY, marqueeState.currentY),
+        width: Math.abs(marqueeState.currentX - marqueeState.startX),
+        height: Math.abs(marqueeState.currentY - marqueeState.startY),
+      };
+
+      if (rect.width < MARQUEE_MIN_SIZE && rect.height < MARQUEE_MIN_SIZE) {
+        if (!marqueeState.additive) clearSelection();
+        return;
+      }
+
+      const hitNodeIds = nodes
+        .filter((node) =>
+          rectsIntersect(rect, { x: node.x, y: node.y, width: node.width, height: node.height })
+        )
+        .map((node) => node.id);
+
+      const hitAnnotationIds = annotations
+        .filter((ann) => rectsIntersect(rect, getAnnotationBounds(ann)))
+        .map((ann) => ann.id);
+
+      if (marqueeState.additive) {
+        setSelectedNodeIds((prev) => [...new Set([...prev, ...hitNodeIds])]);
+        setSelectedAnnotationIds((prev) => [...new Set([...prev, ...hitAnnotationIds])]);
+      } else {
+        setSelectedNodeIds(hitNodeIds);
+        setSelectedAnnotationIds(hitAnnotationIds);
+      }
+      setSelectedEdgeId(null);
+      setSettingsNodeId(null);
+      setSettingsAnnotationId(null);
+      setImageSettingsId(null);
+    },
+    [nodes, annotations]
+  );
+
+  useEffect(() => {
+    if (!marquee) return;
+    function onMove(e) {
+      const pt = clientToCanvas(e.clientX, e.clientY);
+      setMarquee((prev) =>
+        prev ? { ...prev, currentX: pt.x, currentY: pt.y } : null
+      );
+    }
+    function onUp() {
+      setMarquee((prev) => {
+        if (prev) finishMarqueeSelection(prev);
+        return null;
+      });
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [marquee, clientToCanvas, finishMarqueeSelection]);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === "Meta" || e.key === "Control") setModifierKeyHeld(true);
+    }
+    function onKeyUp(e) {
+      if (e.key === "Meta" || e.key === "Control") setModifierKeyHeld(false);
+    }
+    function onBlur() {
+      setModifierKeyHeld(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, []);
+
+  function applyCanvasData(canvasData) {
+    const normalized = normalizeCanvasData(canvasData);
+    setNodes(normalized.nodes);
+    setEdges(normalized.edges);
+    setAnnotations(normalized.annotations);
+    setViewport(normalized.viewport);
+    setSavedFingerprint(canvasFingerprint(normalized));
+    clearSelection();
+    requestAnimationFrame(() => {
+      const el = canvasRef.current;
+      if (el) {
+        el.scrollLeft = normalized.viewport.scrollX;
+        el.scrollTop = normalized.viewport.scrollY;
+      }
+    });
   }
 
   function buildSelectionOrigins(nodeIds, annotationIds) {
@@ -129,11 +289,66 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   const isDirty = savedFingerprint !== canvasFingerprint(canvasData);
   const settingsNode = nodes.find((n) => n.id === settingsNodeId) || null;
   const settingsAnnotation = annotations.find((a) => a.id === settingsAnnotationId) || null;
+  const imageSettingsAnnotation = annotations.find((a) => a.id === imageSettingsId) || null;
 
-  const frameAnnotations = annotations.filter((a) => a.type === "frame");
+  const backBoxAnnotations = annotations.filter((a) => isBackBoxType(a.type));
   const lineAnnotations = annotations.filter((a) => isLineType(a.type));
   const frontAnnotations = annotations.filter((a) =>
     ["heading", "text", "note"].includes(a.type)
+  );
+  const resizableSelectedAnnotations = annotations.filter(
+    (a) => isResizableBoxType(a.type) && selectedAnnotationIds.includes(a.id)
+  );
+  const selectionCount = selectedNodeIds.length + selectedAnnotationIds.length;
+
+  const applySelectionAlignment = useCallback(
+    (action) => {
+      const items = buildAlignableItems(
+        nodes,
+        annotations,
+        selectedNodeIds,
+        selectedAnnotationIds
+      );
+      const moves = computeAlignmentMoves(action, items);
+      if (!moves.length) return;
+
+      const moveByNode = new Map();
+      const moveByAnnotation = new Map();
+      for (const move of moves) {
+        if (move.kind === "node") moveByNode.set(move.id, move);
+        else moveByAnnotation.set(move.id, move);
+      }
+
+      if (moveByNode.size > 0) {
+        setNodes((prev) =>
+          prev.map((node) => {
+            const move = moveByNode.get(node.id);
+            if (!move) return node;
+            return { ...node, x: node.x + move.dx, y: node.y + move.dy };
+          })
+        );
+      }
+
+      if (moveByAnnotation.size > 0) {
+        setAnnotations((prev) =>
+          prev.map((ann) => {
+            const move = moveByAnnotation.get(ann.id);
+            if (!move) return ann;
+            if (isLineType(ann.type)) {
+              return {
+                ...ann,
+                x1: ann.x1 + move.dx,
+                y1: ann.y1 + move.dy,
+                x2: ann.x2 + move.dx,
+                y2: ann.y2 + move.dy,
+              };
+            }
+            return { ...ann, x: ann.x + move.dx, y: ann.y + move.dy };
+          })
+        );
+      }
+    },
+    [nodes, annotations, selectedNodeIds, selectedAnnotationIds]
   );
 
   const persistViewport = useCallback(() => {
@@ -186,6 +401,8 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     let cancelled = false;
     async function load() {
       setLoading(true);
+      setLoadError("");
+      setHydrated(false);
       try {
         const res = await fetch(apiUrl);
         const data = await res.json();
@@ -197,6 +414,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         setAnnotations(normalized.annotations);
         setViewport(normalized.viewport);
         setSavedFingerprint(canvasFingerprint(normalized));
+        setHydrated(true);
         requestAnimationFrame(() => {
           const el = canvasRef.current;
           if (el) {
@@ -204,13 +422,9 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
             el.scrollTop = normalized.viewport.scrollY;
           }
         });
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          const empty = emptyCanvasData();
-          setNodes(empty.nodes);
-          setEdges(empty.edges);
-          setAnnotations(empty.annotations);
-          setViewport(empty.viewport);
+          setLoadError(err?.message || "RoadMap yüklenemedi");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -252,7 +466,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }, [nodes, edges, annotations, viewport, saveCanvas]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || !hydrated || loadError) return;
     if (!isDirty) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
@@ -265,7 +479,81 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [nodes, edges, annotations, viewport, loading, isDirty, saveCanvas]);
+  }, [nodes, edges, annotations, viewport, loading, hydrated, loadError, isDirty, saveCanvas]);
+
+  const duplicateSelection = useCallback(() => {
+    if (selectedNodeIds.length === 0 && selectedAnnotationIds.length === 0) return;
+
+    const idMap = {};
+    const newNodeIds = [];
+    const newAnnotationIds = [];
+
+    if (selectedNodeIds.length > 0) {
+      const selectedSet = new Set(selectedNodeIds);
+      const clonedNodes = nodes
+        .filter((n) => selectedSet.has(n.id))
+        .map((n) => {
+          const newId = nanoid(10);
+          idMap[n.id] = newId;
+          newNodeIds.push(newId);
+          return {
+            ...n,
+            id: newId,
+            x: n.x + DUPLICATE_OFFSET,
+            y: n.y + DUPLICATE_OFFSET,
+          };
+        });
+
+      const clonedEdges = edges
+        .filter((edge) => selectedSet.has(edge.fromNodeId) && selectedSet.has(edge.toNodeId))
+        .map((edge) => ({
+          ...edge,
+          id: nanoid(10),
+          fromNodeId: idMap[edge.fromNodeId],
+          toNodeId: idMap[edge.toNodeId],
+        }));
+
+      setNodes((prev) => [...prev, ...clonedNodes]);
+      if (clonedEdges.length > 0) {
+        setEdges((prev) => [...prev, ...clonedEdges]);
+      }
+    }
+
+    if (selectedAnnotationIds.length > 0) {
+      const selectedSet = new Set(selectedAnnotationIds);
+      const clonedAnnotations = annotations
+        .filter((a) => selectedSet.has(a.id))
+        .map((a) => {
+          const newId = nanoid(10);
+          newAnnotationIds.push(newId);
+          if (isLineType(a.type)) {
+            return {
+              ...a,
+              id: newId,
+              x1: a.x1 + DUPLICATE_OFFSET,
+              y1: a.y1 + DUPLICATE_OFFSET,
+              x2: a.x2 + DUPLICATE_OFFSET,
+              y2: a.y2 + DUPLICATE_OFFSET,
+            };
+          }
+          return {
+            ...a,
+            id: newId,
+            x: a.x + DUPLICATE_OFFSET,
+            y: a.y + DUPLICATE_OFFSET,
+          };
+        });
+
+      setAnnotations((prev) => [...prev, ...clonedAnnotations]);
+    }
+
+    setSelectedNodeIds(newNodeIds);
+    setSelectedAnnotationIds(newAnnotationIds);
+    setSelectedEdgeId(null);
+    setSettingsNodeId(null);
+    setSettingsAnnotationId(null);
+    setImageSettingsId(null);
+  }, [nodes, edges, annotations, selectedNodeIds, selectedAnnotationIds]);
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -275,6 +563,15 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         saveNow();
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
+        if (inField) return;
+        if (selectedNodeIds.length > 0 || selectedAnnotationIds.length > 0) {
+          e.preventDefault();
+          duplicateSelection();
+        }
         return;
       }
 
@@ -316,7 +613,14 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selectedEdgeId, selectedAnnotationIds, selectedNodeIds, linking, saveNow]);
+  }, [
+    selectedEdgeId,
+    selectedAnnotationIds,
+    selectedNodeIds,
+    linking,
+    saveNow,
+    duplicateSelection,
+  ]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -380,6 +684,20 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
             };
           })
         );
+        return;
+      }
+
+      if (dragging.target === "annotation-resize") {
+        setAnnotations((prev) =>
+          prev.map((a) => {
+            if (a.id !== dragging.id) return a;
+            return {
+              ...a,
+              width: Math.max(RESIZE_MIN_SIZE, dragging.orig.width + dx),
+              height: Math.max(RESIZE_MIN_SIZE, dragging.orig.height + dy),
+            };
+          })
+        );
       }
     }
     function onUp() {
@@ -438,6 +756,28 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     applyZoom((zoomRef.current || 1) - ZOOM_STEP);
   }
 
+  const captureSnapshot = useCallback(async () => {
+    const viewportEl = canvasRef.current;
+    const canvasEl = canvasCaptureRef.current;
+    if (!viewportEl || !canvasEl) throw new Error("Canvas hazır değil");
+
+    clearSelection();
+    setSnapshotCaptureMode(true);
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+
+    try {
+      return await captureRoadmapCanvas(viewportEl, canvasEl, {
+        canvasWidth: CANVAS_WIDTH,
+        canvasHeight: CANVAS_HEIGHT,
+        zoom: zoomRef.current || 1,
+      });
+    } finally {
+      setSnapshotCaptureMode(false);
+    }
+  }, []);
+
   useEffect(() => {
     const el = canvasRef.current;
     if (!el || loading) return;
@@ -476,10 +816,48 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   function addAnnotation(typeId) {
     const center = getCanvasCenter(canvasRef.current, zoom);
+    const newId = nanoid(10);
     setAnnotations((prev) => [
       ...prev,
-      createAnnotation(typeId, center, prev.length, nanoid(10)),
+      createAnnotation(typeId, center, prev.length, newId),
     ]);
+    if (typeId === "image") {
+      setSelectedNodeIds([]);
+      setSelectedAnnotationIds([newId]);
+      setImageSettingsId(newId);
+    }
+  }
+
+  function getBulkLinkSources(nodeId) {
+    if (selectedNodeIds.includes(nodeId) && selectedNodeIds.length > 1) {
+      return [...selectedNodeIds];
+    }
+    return [nodeId];
+  }
+
+  function createBulkEdges(sources, fromAnchor, toNodeId, toAnchor) {
+    const seen = new Set(
+      edges.map((edge) =>
+        `${edge.fromNodeId}:${migrateAnchor(edge.fromAnchor)}:${edge.toNodeId}:${migrateAnchor(edge.toAnchor)}`
+      )
+    );
+    const created = [];
+
+    for (const fromNodeId of sources) {
+      if (fromNodeId === toNodeId) continue;
+      const key = `${fromNodeId}:${migrateAnchor(fromAnchor)}:${toNodeId}:${migrateAnchor(toAnchor)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      created.push({
+        id: nanoid(10),
+        fromNodeId,
+        fromAnchor,
+        toNodeId,
+        toAnchor,
+      });
+    }
+
+    return created;
   }
 
   function handleAnchorPointerDown(e, nodeId, anchor) {
@@ -488,16 +866,13 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
     if (linking) {
       if (linking.fromNodeId !== nodeId) {
-        setEdges((prev) => [
-          ...prev,
-          {
-            id: nanoid(10),
-            fromNodeId: linking.fromNodeId,
-            fromAnchor: linking.fromAnchor,
-            toNodeId: nodeId,
-            toAnchor: anchor,
-          },
-        ]);
+        const sources = linking.bulkFromNodeIds?.length
+          ? linking.bulkFromNodeIds
+          : [linking.fromNodeId];
+        const newEdges = createBulkEdges(sources, linking.fromAnchor, nodeId, anchor);
+        if (newEdges.length > 0) {
+          setEdges((prev) => [...prev, ...newEdges]);
+        }
         setLinking(null);
         setLinkPointer(null);
       }
@@ -506,9 +881,12 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
     const node = nodes.find((n) => n.id === nodeId);
     if (!node) return;
-    setLinking({ fromNodeId: nodeId, fromAnchor: anchor });
+    setLinking({
+      fromNodeId: nodeId,
+      fromAnchor: anchor,
+      bulkFromNodeIds: getBulkLinkSources(nodeId),
+    });
     setLinkPointer(getAnchorPoint(node, anchor));
-    clearSelection();
   }
 
   function startCanvasPan(e) {
@@ -526,7 +904,20 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     if (e.target.closest("[data-roadmap-anchor]")) return;
     if (e.target.closest("[data-roadmap-frame-handle]")) return;
     if (e.target.closest("[data-roadmap-line-handle]")) return;
+    if (e.target.closest("[data-roadmap-resize-handle]")) return;
     if (e.target.closest("button")) return;
+    if (e.ctrlKey || e.metaKey) {
+      const pt = clientToCanvas(e.clientX, e.clientY);
+      setMarquee({
+        startX: pt.x,
+        startY: pt.y,
+        currentX: pt.x,
+        currentY: pt.y,
+        additive: e.shiftKey,
+      });
+      e.preventDefault();
+      return;
+    }
     clearSelection();
     const el = canvasRef.current;
     if (!el) return;
@@ -610,6 +1001,22 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     });
   }
 
+  function startAnnotationResize(e, ann) {
+    if (linking) return;
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedEdgeId(null);
+    setSelectedNodeIds([]);
+    setSelectedAnnotationIds([ann.id]);
+    setDragging({
+      target: "annotation-resize",
+      id: ann.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      orig: { width: ann.width, height: ann.height },
+    });
+  }
+
   function startLineEndpointDrag(e, ann, endpoint) {
     if (linking) return;
     e.stopPropagation();
@@ -658,7 +1065,15 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   function deleteAnnotation(annotationId) {
     setAnnotations((prev) => prev.filter((a) => a.id !== annotationId));
     setSettingsAnnotationId(null);
+    setImageSettingsId(null);
     setSelectedAnnotationIds((prev) => prev.filter((id) => id !== annotationId));
+  }
+
+  function applyImageDraft(annotationId, patch) {
+    setAnnotations((prev) =>
+      prev.map((a) => (a.id === annotationId ? { ...a, ...patch } : a))
+    );
+    setImageSettingsId(null);
   }
 
   const linkFromAnchor = linking
@@ -670,11 +1085,17 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   const canvasCursor = linking
     ? "cursor-crosshair"
-    : panning
-      ? "cursor-grabbing"
-      : dragging
-        ? "cursor-grabbing"
-        : "cursor-grab";
+    : dragging?.target === "annotation-resize"
+      ? "cursor-se-resize"
+      : marquee
+        ? "cursor-pointer"
+        : panning
+          ? "cursor-grabbing"
+          : dragging
+            ? "cursor-grabbing"
+            : modifierKeyHeld
+              ? "cursor-pointer"
+              : "cursor-grab";
 
   function renderBoxAnnotation(ann) {
     const selected = selectedAnnotationIds.includes(ann.id);
@@ -725,6 +1146,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   function renderFrameChrome(ann) {
     const edge = 10;
+    const isImage = ann.type === "image";
 
     function onChromePointerDown(e) {
       startAnnotationDrag(e, ann);
@@ -732,11 +1154,29 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
     function onChromeDoubleClick(e) {
       e.stopPropagation();
-      setSettingsAnnotationId(ann.id);
+      if (isImage) {
+        setImageSettingsId(ann.id);
+      } else {
+        setSettingsAnnotationId(ann.id);
+      }
     }
 
     const edgeClass =
       "absolute z-[15] cursor-grab active:cursor-grabbing";
+
+    if (isImage) {
+      return (
+        <div
+          key={`frame-chrome-${ann.id}`}
+          data-roadmap-annotation=""
+          data-roadmap-frame-handle=""
+          className="absolute z-[15] cursor-grab active:cursor-grabbing"
+          style={{ left: ann.x, top: ann.y, width: ann.width, height: ann.height }}
+          onPointerDown={onChromePointerDown}
+          onDoubleClick={onChromeDoubleClick}
+        />
+      );
+    }
 
     return (
       <div key={`frame-chrome-${ann.id}`}>
@@ -814,10 +1254,48 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     );
   }
 
+  function renderResizeHandle(ann) {
+    const handleSize = 12;
+    const offset = handleSize / 2;
+    return (
+      <div
+        key={`resize-${ann.id}`}
+        data-roadmap-resize-handle=""
+        className="absolute z-[36] cursor-se-resize rounded-sm border-2 border-indigo-500 bg-white shadow-md dark:bg-zinc-900"
+        style={{
+          left: ann.x + ann.width - offset,
+          top: ann.y + ann.height - offset,
+          width: handleSize,
+          height: handleSize,
+        }}
+        title="Boyutlandır"
+        onPointerDown={(e) => startAnnotationResize(e, ann)}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
         <p className="text-sm text-zinc-400">RoadMap yükleniyor…</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
+        <p className="max-w-md text-xs text-zinc-500">
+          Yükleme hatası oluştu. Verileriniz korunması için otomatik kayıt yapılmadı. Sayfayı yenileyin.
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          Yeniden dene
+        </button>
       </div>
     );
   }
@@ -844,7 +1322,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
             {projectName ? (
               <span className="truncate font-medium text-zinc-700 dark:text-zinc-200">{projectName}</span>
             ) : null}
-            <p className="hidden text-zinc-500 sm:block">⌘S kaydet</p>
+            <p className="hidden text-zinc-500 sm:block">⌘S kaydet · ⌘D çoğalt</p>
             {projectId ? (
               <button
                 type="button"
@@ -901,6 +1379,34 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                   />
                 </svg>
               </button>
+              <RoadmapAlignMenu
+                selectionCount={selectionCount}
+                onAlign={applySelectionAlignment}
+              />
+              <button
+                type="button"
+                onClick={() => setRevisionsOpen(true)}
+                title="Geçmiş"
+                aria-label="Geçmiş"
+                className="inline-flex h-7 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
+                </svg>
+                <span className="hidden sm:inline">Geçmiş</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSnapshotsOpen(true)}
+                title="Snapshots"
+                aria-label="Snapshots"
+                className="inline-flex h-7 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                </svg>
+                <span className="hidden sm:inline">Snapshots</span>
+              </button>
             </div>
             <div className="w-[7.5rem] shrink-0 text-right tabular-nums">
               {saving && <span>Kaydediliyor…</span>}
@@ -930,6 +1436,8 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
             }}
           >
             <div
+              ref={canvasCaptureRef}
+              data-roadmap-capture-root=""
               className="absolute left-0 top-0 origin-top-left"
               style={{
                 width: CANVAS_WIDTH,
@@ -937,7 +1445,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                 transform: `scale(${zoom})`,
               }}
             >
-            {frameAnnotations.map(renderFrameVisual)}
+            {backBoxAnnotations.map(renderFrameVisual)}
 
             <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full overflow-visible">
               {edges.map((edge) => {
@@ -1045,7 +1553,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                     }}
                   />
 
-                  {(isHovered || linking) &&
+                  {(isHovered || linking) && !snapshotCaptureMode &&
                     ANCHORS.map((anchor) => {
                       const usage = countAnchorUsage(edges, node.id, anchor);
                       const plusCount = usage + 1;
@@ -1082,9 +1590,23 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
             {frontAnnotations.map(renderBoxAnnotation)}
 
-            {frameAnnotations.map(renderFrameChrome)}
+            {!snapshotCaptureMode && backBoxAnnotations.map(renderFrameChrome)}
 
-            {lineAnnotations.map(renderLineHandles)}
+            {!snapshotCaptureMode && lineAnnotations.map(renderLineHandles)}
+
+            {!snapshotCaptureMode && resizableSelectedAnnotations.map(renderResizeHandle)}
+
+            {marquee ? (
+              <div
+                className="pointer-events-none absolute z-[50] border-2 border-indigo-500 bg-indigo-500/10"
+                style={{
+                  left: Math.min(marquee.startX, marquee.currentX),
+                  top: Math.min(marquee.startY, marquee.currentY),
+                  width: Math.abs(marquee.currentX - marquee.startX),
+                  height: Math.abs(marquee.currentY - marquee.startY),
+                }}
+              />
+            ) : null}
             </div>
           </div>
         </div>
@@ -1101,6 +1623,14 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         annotation={settingsAnnotation}
         onClose={() => setSettingsAnnotationId(null)}
         onChange={applyAnnotationDraft}
+        onDelete={deleteAnnotation}
+      />
+
+      <RoadmapImageModal
+        annotation={imageSettingsAnnotation}
+        projectId={projectId}
+        onClose={() => setImageSettingsId(null)}
+        onSave={(patch) => applyImageDraft(imageSettingsId, patch)}
         onDelete={deleteAnnotation}
       />
 
@@ -1133,6 +1663,21 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           }}
         />
       ) : null}
+
+      <RoadmapSnapshotsModal
+        open={snapshotsOpen}
+        onClose={() => setSnapshotsOpen(false)}
+        apiBase={snapshotsApiUrl}
+        onCapture={captureSnapshot}
+        currentZoom={zoom}
+      />
+
+      <RoadmapRevisionsModal
+        open={revisionsOpen}
+        onClose={() => setRevisionsOpen(false)}
+        apiBase={revisionsApiUrl}
+        onRestore={applyCanvasData}
+      />
     </div>
   );
 }
