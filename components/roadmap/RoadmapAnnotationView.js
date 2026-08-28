@@ -2,8 +2,19 @@
 
 import { getTitleFontSize } from "@/lib/roadmap/nodeDisplay";
 import { getFrameFillColor, isLineType } from "@/lib/roadmap/annotations";
+import {
+  getYoutubeEmbedUrl,
+  getYoutubeThumbnailUrl,
+  parseYoutubeVideoId,
+} from "@/lib/roadmap/youtube";
 
-export default function RoadmapAnnotationView({ annotation, selected, onDoubleClick }) {
+export default function RoadmapAnnotationView({
+  annotation,
+  selected,
+  onDoubleClick,
+  onCheckboxToggle,
+  embedInteractive = true,
+}) {
   const { type } = annotation;
 
   if (type === "frame") {
@@ -58,6 +69,86 @@ export default function RoadmapAnnotationView({ annotation, selected, onDoubleCl
             <span className="text-xs">Çift tıkla · görsel ekle</span>
           </div>
         )}
+      </div>
+    );
+  }
+
+  if (type === "video") {
+    const videoId = parseYoutubeVideoId(annotation.videoUrl);
+    return (
+      <div
+        className={`relative h-full w-full overflow-hidden rounded-lg bg-zinc-950 ${
+          selected ? "ring-2 ring-indigo-400 ring-offset-1" : ""
+        }`}
+        style={{
+          border: `${annotation.strokeWidth || 2}px solid ${annotation.color || "#71717a"}`,
+        }}
+        onDoubleClick={onDoubleClick}
+      >
+        {videoId ? (
+          <>
+            <img
+              src={getYoutubeThumbnailUrl(videoId)}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+              draggable={false}
+            />
+            {embedInteractive ? (
+              <iframe
+                title="YouTube video"
+                src={getYoutubeEmbedUrl(videoId)}
+                className="absolute inset-0 h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/25">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white shadow-lg">
+                  ▶
+                </span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-1 px-3 text-center text-zinc-400">
+            <svg className="h-8 w-8 opacity-50" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            <span className="text-xs">Çift tıkla · YouTube linki ekle</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (type === "checkbox") {
+    return (
+      <div
+        className={`flex h-full w-full items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 ${
+          selected ? "ring-2 ring-indigo-400" : ""
+        }`}
+        onDoubleClick={onDoubleClick}
+      >
+        <input
+          type="checkbox"
+          data-roadmap-checkbox=""
+          checked={Boolean(annotation.checked)}
+          onChange={(e) => {
+            e.stopPropagation();
+            onCheckboxToggle?.(e.target.checked);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 shrink-0 cursor-pointer rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+        />
+        <span
+          className={`min-w-0 flex-1 break-words leading-snug ${
+            annotation.checked ? "text-zinc-500 line-through" : ""
+          }`}
+          style={{ color: annotation.checked ? undefined : annotation.color, fontSize: annotation.fontSize }}
+        >
+          {annotation.title || "Görev"}
+        </span>
       </div>
     );
   }

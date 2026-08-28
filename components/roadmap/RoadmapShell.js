@@ -16,6 +16,7 @@ import {
   createAnnotation,
   isBackBoxType,
   isLineType,
+  isMediaBoxType,
   isResizableBoxType,
 } from "@/lib/roadmap/annotations";
 import {
@@ -28,6 +29,7 @@ import {
 } from "@/lib/roadmap/utils";
 import AnnotationSettingsModal from "./AnnotationSettingsModal";
 import RoadmapImageModal from "./RoadmapImageModal";
+import RoadmapVideoModal from "./RoadmapVideoModal";
 import NodeSettingsModal from "./NodeSettingsModal";
 import RoadmapAddTodoModal from "./RoadmapAddTodoModal";
 import RoadmapAnnotationView from "./RoadmapAnnotationView";
@@ -106,6 +108,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   const [settingsNodeId, setSettingsNodeId] = useState(null);
   const [settingsAnnotationId, setSettingsAnnotationId] = useState(null);
   const [imageSettingsId, setImageSettingsId] = useState(null);
+  const [videoSettingsId, setVideoSettingsId] = useState(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState(null);
   const [selectedAnnotationIds, setSelectedAnnotationIds] = useState([]);
   const [selectedNodeIds, setSelectedNodeIds] = useState([]);
@@ -181,6 +184,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       setSettingsNodeId(null);
       setSettingsAnnotationId(null);
       setImageSettingsId(null);
+      setVideoSettingsId(null);
     },
     [nodes, annotations]
   );
@@ -290,11 +294,12 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   const settingsNode = nodes.find((n) => n.id === settingsNodeId) || null;
   const settingsAnnotation = annotations.find((a) => a.id === settingsAnnotationId) || null;
   const imageSettingsAnnotation = annotations.find((a) => a.id === imageSettingsId) || null;
+  const videoSettingsAnnotation = annotations.find((a) => a.id === videoSettingsId) || null;
 
   const backBoxAnnotations = annotations.filter((a) => isBackBoxType(a.type));
   const lineAnnotations = annotations.filter((a) => isLineType(a.type));
   const frontAnnotations = annotations.filter((a) =>
-    ["heading", "text", "note"].includes(a.type)
+    ["heading", "text", "note", "checkbox"].includes(a.type)
   );
   const resizableSelectedAnnotations = annotations.filter(
     (a) => isResizableBoxType(a.type) && selectedAnnotationIds.includes(a.id)
@@ -553,6 +558,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     setSettingsNodeId(null);
     setSettingsAnnotationId(null);
     setImageSettingsId(null);
+    setVideoSettingsId(null);
   }, [nodes, edges, annotations, selectedNodeIds, selectedAnnotationIds]);
 
   useEffect(() => {
@@ -826,6 +832,11 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       setSelectedAnnotationIds([newId]);
       setImageSettingsId(newId);
     }
+    if (typeId === "video") {
+      setSelectedNodeIds([]);
+      setSelectedAnnotationIds([newId]);
+      setVideoSettingsId(newId);
+    }
   }
 
   function getBulkLinkSources(nodeId) {
@@ -1066,6 +1077,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     setAnnotations((prev) => prev.filter((a) => a.id !== annotationId));
     setSettingsAnnotationId(null);
     setImageSettingsId(null);
+    setVideoSettingsId(null);
     setSelectedAnnotationIds((prev) => prev.filter((id) => id !== annotationId));
   }
 
@@ -1074,6 +1086,13 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       prev.map((a) => (a.id === annotationId ? { ...a, ...patch } : a))
     );
     setImageSettingsId(null);
+  }
+
+  function applyVideoDraft(annotationId, patch) {
+    setAnnotations((prev) =>
+      prev.map((a) => (a.id === annotationId ? { ...a, ...patch } : a))
+    );
+    setVideoSettingsId(null);
   }
 
   const linkFromAnchor = linking
@@ -1111,11 +1130,15 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           height: ann.height,
           zIndex: 30,
         }}
-        onPointerDown={(e) => startAnnotationDrag(e, ann)}
+        onPointerDown={(e) => {
+          if (ann.type === "checkbox" && e.target.closest("[data-roadmap-checkbox]")) return;
+          startAnnotationDrag(e, ann);
+        }}
       >
         <RoadmapAnnotationView
           annotation={ann}
           selected={selected}
+          onCheckboxToggle={(checked) => applyAnnotationDraft(ann.id, { checked })}
           onDoubleClick={(e) => {
             e.stopPropagation();
             setSettingsAnnotationId(ann.id);
@@ -1139,14 +1162,18 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           zIndex: 1,
         }}
       >
-        <RoadmapAnnotationView annotation={ann} selected={selected} />
+        <RoadmapAnnotationView
+          annotation={ann}
+          selected={selected}
+          embedInteractive={!snapshotCaptureMode}
+        />
       </div>
     );
   }
 
   function renderFrameChrome(ann) {
     const edge = 10;
-    const isImage = ann.type === "image";
+    const isMedia = isMediaBoxType(ann.type);
 
     function onChromePointerDown(e) {
       startAnnotationDrag(e, ann);
@@ -1154,8 +1181,10 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
     function onChromeDoubleClick(e) {
       e.stopPropagation();
-      if (isImage) {
+      if (ann.type === "image") {
         setImageSettingsId(ann.id);
+      } else if (ann.type === "video") {
+        setVideoSettingsId(ann.id);
       } else {
         setSettingsAnnotationId(ann.id);
       }
@@ -1164,7 +1193,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     const edgeClass =
       "absolute z-[15] cursor-grab active:cursor-grabbing";
 
-    if (isImage) {
+    if (isMedia) {
       return (
         <div
           key={`frame-chrome-${ann.id}`}
@@ -1631,6 +1660,13 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         projectId={projectId}
         onClose={() => setImageSettingsId(null)}
         onSave={(patch) => applyImageDraft(imageSettingsId, patch)}
+        onDelete={deleteAnnotation}
+      />
+
+      <RoadmapVideoModal
+        annotation={videoSettingsAnnotation}
+        onClose={() => setVideoSettingsId(null)}
+        onSave={(patch) => applyVideoDraft(videoSettingsId, patch)}
         onDelete={deleteAnnotation}
       />
 

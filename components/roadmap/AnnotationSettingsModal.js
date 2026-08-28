@@ -58,7 +58,7 @@ export default function AnnotationSettingsModal({ annotation, onClose, onChange,
             {typeDef.label} Ayarları
           </h2>
           <div className="mt-4 space-y-4">
-            {!isLine && draft.type !== "frame" && (
+            {!isLine && draft.type !== "frame" && draft.type !== "checkbox" && (
               <div>
                 <label className="mb-1 block text-xs font-medium text-zinc-500">Metin</label>
                 <textarea
@@ -80,6 +80,41 @@ export default function AnnotationSettingsModal({ annotation, onClose, onChange,
                   className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
                 />
               </div>
+            )}
+
+            {draft.type === "checkbox" && (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-500">Metin</label>
+                  <input
+                    value={draft.title}
+                    onChange={(e) => patch({ title: e.target.value })}
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                  />
+                </div>
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(draft.checked)}
+                    onChange={(e) => patch({ checked: e.target.checked })}
+                    className="rounded border-zinc-300"
+                  />
+                  İşaretli
+                </label>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-500">
+                    Punto ({draft.fontSize}px)
+                  </label>
+                  <input
+                    type="range"
+                    min={12}
+                    max={28}
+                    value={draft.fontSize}
+                    onChange={(e) => patch({ fontSize: Number(e.target.value) })}
+                    className="w-full"
+                  />
+                </div>
+              </>
             )}
 
             {(draft.type === "text" || draft.type === "heading") && (
