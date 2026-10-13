@@ -367,7 +367,7 @@ export default function MvpFeaturesTab({ projectId }) {
         <button
           type="submit"
           disabled={adding || !newTitle.trim()}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
         >
           {adding ? "Ekleniyor…" : "Özellik ekle"}
         </button>

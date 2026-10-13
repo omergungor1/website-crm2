@@ -15,6 +15,7 @@ import CopyFastTab from "@/components/project/CopyFastTab";
 import AiTitleGeneratorTab from "@/components/project/AiTitleGeneratorTab";
 import ProjectOverviewTab from "@/components/project/ProjectOverviewTab";
 import TodoListTab from "@/components/project/TodoListTab";
+import MediaStudioTab from "@/components/project/media-studio/MediaStudioTab";
 import MvpFeaturesTab from "@/components/project/MvpFeaturesTab";
 import MarketingBlueprintTab from "@/components/project/MarketingBlueprintTab";
 import ProductBlueprintTab from "@/components/project/ProductBlueprintTab";
@@ -120,6 +121,7 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
             <SlogansTab projectId={project.id} />
           )}
           {activeTab === "todo-list" && <TodoListTab projectId={project.id} />}
+          {activeTab === "media-studio" && <MediaStudioTab project={project} />}
           {activeTab === "mvp-features" && <MvpFeaturesTab projectId={project.id} />}
           {activeTab === "installation" && (
             <InstallationTab
@@ -177,8 +179,9 @@ export default function ProjectDetail({ project, isAdmin, currentUserId }) {
               projectId={project.id}
               initialProjectName={project.name}
               initialProjectDescription={project.description}
+              initialLogoUrl={project.logo_url || ""}
               initialIsArchived={project.is_archived}
-              initialPaymentStatus={project.payment_status}
+              initialAdminNote={project.admin_note}
               initialProjectType={project.type || "landing_page"}
             />
           )}

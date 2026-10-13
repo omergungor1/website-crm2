@@ -5,7 +5,7 @@ import NewProjectButton from "@/components/NewProjectButton";
 import DashboardProjects from "@/components/dashboard/DashboardProjects";
 import DashboardGoals from "@/components/dashboard/DashboardGoals";
 
-export const metadata = { title: "Was CRM" };
+export const metadata = { title: "Was Ekip" };
 
 export default async function DashboardPage() {
   const supabase = await createClient();

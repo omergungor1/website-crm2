@@ -24,6 +24,34 @@ const TODO_COLORS = [
   },
 ];
 
+const KANBAN_COLUMNS = [
+  {
+    id: "todo",
+    label: "Yapılacak",
+    dot: "bg-zinc-400",
+    surface: "bg-zinc-50/80 dark:bg-zinc-950/50",
+  },
+  {
+    id: "in_progress",
+    label: "Devam Ediyor",
+    dot: "bg-blue-500",
+    surface: "bg-blue-50/50 dark:bg-blue-950/20",
+  },
+  {
+    id: "completed",
+    label: "Tamamlandı",
+    dot: "bg-emerald-500",
+    surface: "bg-emerald-50/50 dark:bg-emerald-950/20",
+  },
+];
+
+function getKanbanStatus(todo) {
+  if (todo.is_archived) return "archived";
+  if (todo.is_completed) return "completed";
+  if (todo.is_later) return "in_progress";
+  return "todo";
+}
+
 function getColorMeta(colorId) {
   return TODO_COLORS.find((c) => c.id === colorId) || null;
 }
@@ -333,17 +361,22 @@ function TodoRowActions({
 }
 
 function TodoEditModal({ todo, saving, onClose, onSave }) {
-  const [title, setTitle] = useState("");
-  const [color, setColor] = useState(null);
-
-  useEffect(() => {
-    if (todo) {
-      setTitle(todo.title);
-      setColor(todo.color || null);
-    }
-  }, [todo]);
-
   if (!todo) return null;
+
+  return (
+    <TodoEditModalContent
+      key={todo.id}
+      todo={todo}
+      saving={saving}
+      onClose={onClose}
+      onSave={onSave}
+    />
+  );
+}
+
+function TodoEditModalContent({ todo, saving, onClose, onSave }) {
+  const [title, setTitle] = useState(todo.title);
+  const [color, setColor] = useState(todo.color || null);
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -458,6 +491,7 @@ export default function TodoListTab({
   title = "Todo List",
   description = "Proje görevlerini ekleyin, renklendirin, tamamlayın ve sürükleyerek sıralayın.",
   showHeading = true,
+  view = "list",
 }) {
   const base = apiBase || `/api/projects/${projectId}/todos`;
   const [todos, setTodos] = useState([]);
@@ -475,6 +509,9 @@ export default function TodoListTab({
   const [editSaving, setEditSaving] = useState(false);
   const [deletingTodo, setDeletingTodo] = useState(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [kanbanDraggingId, setKanbanDraggingId] = useState(null);
+  const [kanbanOverColumn, setKanbanOverColumn] = useState(null);
+  const [kanbanSavingId, setKanbanSavingId] = useState(null);
 
   const visibleTodos = useMemo(() => todos.filter((t) => !t.is_deleted), [todos]);
   const activeTodos = useMemo(
@@ -486,6 +523,10 @@ export default function TodoListTab({
     [visibleTodos]
   );
   const archivedTodos = useMemo(() => visibleTodos.filter((t) => t.is_archived), [visibleTodos]);
+  const kanbanTodos = useMemo(
+    () => visibleTodos.filter((todo) => !todo.is_archived),
+    [visibleTodos]
+  );
 
   function mergeActiveOrder(nextActive) {
     const activeIds = new Set(nextActive.map((t) => t.id));
@@ -516,6 +557,57 @@ export default function TodoListTab({
 
   function replaceTodo(updated) {
     setTodos((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }
+
+  async function moveTodoToKanbanStatus(todo, status) {
+    if (!todo || getKanbanStatus(todo) === status || kanbanSavingId === todo.id) return;
+
+    const optimistic = {
+      ...todo,
+      is_archived: status === "archived",
+      is_later: status === "in_progress",
+      is_completed: status === "completed",
+      completed_at: status === "completed" ? new Date().toISOString() : null,
+    };
+
+    setKanbanSavingId(todo.id);
+    replaceTodo(optimistic);
+    setError("");
+    try {
+      const updated = await patchTodo(todo.id, { kanban_status: status });
+      replaceTodo(updated);
+    } catch (err) {
+      replaceTodo(todo);
+      setError(err.message);
+    } finally {
+      setKanbanSavingId(null);
+    }
+  }
+
+  function handleKanbanDragStart(e, todoId) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", todoId);
+    setKanbanDraggingId(todoId);
+  }
+
+  function handleKanbanDragOver(e, columnId) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setKanbanOverColumn(columnId);
+  }
+
+  function handleKanbanDrop(e, status) {
+    e.preventDefault();
+    const todoId = kanbanDraggingId || e.dataTransfer.getData("text/plain");
+    const todo = todos.find((item) => item.id === todoId);
+    setKanbanDraggingId(null);
+    setKanbanOverColumn(null);
+    if (todo) moveTodoToKanbanStatus(todo, status);
+  }
+
+  function handleKanbanDragEnd() {
+    setKanbanDraggingId(null);
+    setKanbanOverColumn(null);
   }
 
   async function handleAdd(e) {
@@ -855,6 +947,53 @@ export default function TodoListTab({
     );
   }
 
+  function renderKanbanCard(todo) {
+    const colorMeta = getColorMeta(todo.color);
+    const isDragging = kanbanDraggingId === todo.id;
+    const isSaving = kanbanSavingId === todo.id;
+
+    return (
+      <article
+        key={todo.id}
+        draggable={!isSaving}
+        onDragStart={(e) => handleKanbanDragStart(e, todo.id)}
+        onDragEnd={handleKanbanDragEnd}
+        onDoubleClick={() => setEditingTodo(todo)}
+        className={`group cursor-grab rounded-xl border bg-white p-3 shadow-sm transition active:cursor-grabbing dark:bg-zinc-900 ${
+          colorMeta ? colorMeta.row : "border-zinc-200 dark:border-zinc-700"
+        } ${isDragging ? "scale-[0.98] opacity-40" : "hover:-translate-y-0.5 hover:shadow-md"} ${
+          isSaving ? "pointer-events-none opacity-60" : ""
+        }`}
+      >
+        <div className="flex items-start gap-2">
+          <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${colorMeta?.dot || "bg-zinc-300"}`} />
+          <div className="min-w-0 flex-1 text-sm font-medium leading-relaxed text-zinc-900 dark:text-zinc-100">
+            <TodoTitleContent title={todo.title} />
+          </div>
+          <button
+            type="button"
+            title="Arşivle"
+            aria-label="Arşivle"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              moveTodoToKanbanStatus(todo, "archived");
+            }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-400 opacity-0 transition hover:bg-zinc-100 hover:text-zinc-700 group-hover:opacity-100 group-focus-within:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM12 17.5L6.5 12H10v-2h4v2h3.5L12 17.5zM5.12 5l.81-1h12l.94 1H5.12z" />
+            </svg>
+          </button>
+        </div>
+        <div className="mt-3 flex items-center justify-between text-[10px] text-zinc-400">
+          <span>Çift tıkla · düzenle</span>
+          {isSaving ? <span>Kaydediliyor…</span> : <DragHandleIcon className="h-4 w-4" />}
+        </div>
+      </article>
+    );
+  }
+
   const inputCls =
     "min-w-0 flex-1 resize-y rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm leading-relaxed text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100";
 
@@ -862,6 +1001,126 @@ export default function TodoListTab({
 
   if (loading) {
     return <div className="py-8 text-center text-sm text-zinc-400">Yükleniyor…</div>;
+  }
+
+  if (view === "kanban") {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-4">
+        <Toaster position="top-center" richColors={false} />
+
+        <form
+          onSubmit={handleAdd}
+          className="flex shrink-0 flex-col gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-700 dark:bg-zinc-800/50 sm:flex-row sm:items-center"
+        >
+          <textarea
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={handleTodoTextareaKeyDown}
+            placeholder="Yeni görev yaz…"
+            rows={1}
+            className="min-h-10 min-w-0 flex-1 resize-none rounded-lg border-0 bg-white px-3 py-2 text-sm leading-relaxed text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-300 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:ring-zinc-600"
+            disabled={adding}
+          />
+          <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+            <div className="flex h-10 items-center rounded-lg border border-zinc-200 bg-white px-2 dark:border-zinc-700 dark:bg-zinc-900">
+              <ColorPicker value={newColor} onChange={setNewColor} size="sm" />
+            </div>
+            <button
+              type="submit"
+              disabled={adding || !newTitle.trim()}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+              </svg>
+              {adding ? "Ekleniyor…" : "Yeni görev"}
+            </button>
+          </div>
+        </form>
+
+        {error ? <p className="shrink-0 text-sm text-red-600">{error}</p> : null}
+
+        <div className="min-h-0 flex-1 overflow-x-auto pb-2">
+          <div className="flex min-h-full min-w-[760px] gap-3">
+            {KANBAN_COLUMNS.map((column) => {
+              const columnTodos = kanbanTodos.filter(
+                (todo) => getKanbanStatus(todo) === column.id
+              );
+              const isOver = kanbanOverColumn === column.id;
+
+              return (
+                <section
+                  key={column.id}
+                  onDragOver={(e) => handleKanbanDragOver(e, column.id)}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget)) {
+                      setKanbanOverColumn(null);
+                    }
+                  }}
+                  onDrop={(e) => handleKanbanDrop(e, column.id)}
+                  className={`flex min-w-[235px] flex-1 flex-col rounded-2xl border p-2.5 transition ${
+                    column.surface
+                  } ${
+                    isOver
+                      ? "border-[var(--brand)] ring-2 ring-[var(--brand)]/20"
+                      : "border-zinc-200 dark:border-zinc-800"
+                  }`}
+                >
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${column.dot}`} />
+                      <h3 className="text-xs font-semibold text-zinc-700 dark:text-zinc-200">
+                        {column.label}
+                      </h3>
+                    </div>
+                    <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-zinc-500 shadow-sm dark:bg-zinc-800">
+                      {columnTodos.length}
+                    </span>
+                  </div>
+
+                  <div className="flex min-h-32 flex-1 flex-col gap-2">
+                    {columnTodos.map(renderKanbanCard)}
+                    {columnTodos.length === 0 ? (
+                      <div className="flex min-h-24 flex-1 items-center justify-center rounded-xl border border-dashed border-zinc-200 px-3 text-center text-xs text-zinc-400 dark:border-zinc-700">
+                        Görevi buraya sürükleyin
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
+              );
+            })}
+
+            <section
+              onDragOver={(e) => handleKanbanDragOver(e, "archived")}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                  setKanbanOverColumn(null);
+                }
+              }}
+              onDrop={(e) => handleKanbanDrop(e, "archived")}
+              className={`flex w-32 shrink-0 flex-col items-center justify-center rounded-2xl border border-dashed p-3 text-center transition ${
+                kanbanOverColumn === "archived"
+                  ? "border-rose-400 bg-rose-50 text-rose-600 ring-2 ring-rose-200 dark:bg-rose-950/30"
+                  : "border-zinc-300 bg-zinc-50/60 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-950/40"
+              }`}
+            >
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M20.54 5.23l-1.39-1.68C18.88 3.21 18.47 3 18 3H6c-.47 0-.88.21-1.16.55L3.46 5.23C3.17 5.57 3 6.02 3 6.5V19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6.5c0-.48-.17-.93-.46-1.27zM5.12 5l.81-1h12l.94 1H5.12z" />
+              </svg>
+              <span className="mt-2 text-xs font-semibold">Arşivle</span>
+              <span className="mt-1 text-[10px]">Buraya bırak</span>
+            </section>
+          </div>
+        </div>
+
+        <TodoEditModal
+          todo={editingTodo}
+          saving={editSaving}
+          onClose={() => setEditingTodo(null)}
+          onSave={handleEditSave}
+        />
+      </div>
+    );
   }
 
   return (
@@ -901,7 +1160,7 @@ export default function TodoListTab({
           <button
             type="submit"
             disabled={adding || !newTitle.trim()}
-            className="w-full rounded-lg bg-zinc-900 px-2 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+            className="w-full rounded-lg bg-zinc-900 px-2 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
           >
             {adding ? "…" : "Ekle"}
           </button>

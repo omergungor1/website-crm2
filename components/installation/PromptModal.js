@@ -41,7 +41,7 @@ export default function PromptModal({ text, onClose }) {
             </button>
             <button
               onClick={handleDownload}
-              className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900"
+              className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
             >
               İndir (.md)
             </button>

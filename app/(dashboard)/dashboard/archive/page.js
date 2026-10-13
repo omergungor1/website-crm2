@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import DashboardBackLink from "@/components/dashboard/DashboardBackLink";
 import ProjectList from "@/components/ProjectList";
 
-export const metadata = { title: "Was CRM" };
+export const metadata = { title: "Was Ekip" };
 
 export default async function ArchivePage() {
   const supabase = await createClient();

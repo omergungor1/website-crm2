@@ -28,7 +28,7 @@ export default function AiProductBriefSection({ projectId, onBriefGenerated }) {
 
   return (
     <SectionCard
-      title="AI Product Assistant"
+      title="Was Ekip"
       description="ChatGPT ile ürün blueprint'ini otomatik oluşturun — özet, hedef kitle, özellikler, MVP ve daha fazlası."
     >
       <div className="space-y-4">

@@ -1519,7 +1519,7 @@ export default function InstallationForm({
               </p>
               <button
                 onClick={() => setStep(1)}
-                className="mt-8 rounded-xl bg-zinc-900 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                className="mt-8 rounded-xl bg-zinc-900 px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
               >
                 Kuruluma Başla →
               </button>
@@ -1603,7 +1603,7 @@ export default function InstallationForm({
                 <button
                   onClick={handleNext}
                   disabled={saving}
-                  className="rounded-lg bg-zinc-900 px-8 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                  className="rounded-lg bg-zinc-900 px-8 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
                 >
                   {isCompleted ? "İleri →" : saving ? "Kaydediliyor…" : "İlerle →"}
                 </button>
@@ -1631,7 +1631,7 @@ export default function InstallationForm({
                   <button
                     onClick={handleSubmit}
                     disabled={saving}
-                    className="w-full rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    className="w-full rounded-xl bg-zinc-900 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
                   >
                     {saving ? "Gönderiliyor…" : "Kaydet ve Gönder ✓"}
                   </button>
@@ -2260,7 +2260,7 @@ export default function InstallationForm({
             <button
               onClick={() => setConfirmModal(true)}
               disabled={saving}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
+              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
             >
               Kaydet ve Gönder
             </button>

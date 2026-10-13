@@ -1,6 +1,6 @@
 import DeepWorkShell from "@/components/deep-work/DeepWorkShell";
 
-export const metadata = { title: "Deep Work — Was CRM" };
+export const metadata = { title: "Deep Work — Was Ekip" };
 
 export default function DeepWorkPage() {
   return (

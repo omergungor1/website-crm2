@@ -769,7 +769,7 @@ export default function BoardTab() {
         description="Aktif oturum sonlandırılacak ve çalışma süresi kaydedilecek."
         confirmLabel="Evet, bitir"
         busyLabel="Bitiriliyor…"
-        confirmClassName="bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+        confirmClassName="bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
         busy={busy}
         onClose={() => {
           if (!busy) setConfirmAction(null);

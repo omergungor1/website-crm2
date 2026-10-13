@@ -48,7 +48,7 @@ function RoundPlusButton({ onClick, title, size = "md" }) {
       title={title}
       aria-label={title}
       onClick={onClick}
-      className={`${sizeCls} flex shrink-0 items-center justify-center rounded-full bg-zinc-900 text-white shadow-sm transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white`}
+      className={`${sizeCls} flex shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-white shadow-sm transition hover:bg-[var(--brand-hover)]`}
     >
       <PlusIcon className={iconCls} />
     </button>

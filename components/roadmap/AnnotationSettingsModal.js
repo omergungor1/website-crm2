@@ -2,25 +2,50 @@
 
 import { useEffect, useState } from "react";
 import { NODE_COLORS } from "@/lib/roadmap/constants";
-import { NOTE_COLORS, isLineType, getAnnotationTypeDef } from "@/lib/roadmap/annotations";
+import {
+  NOTE_COLORS,
+  clampProgress,
+  isLineType,
+  getAnnotationTypeDef,
+  normalizeLinkUrl,
+} from "@/lib/roadmap/annotations";
+import { NOTE_MARKDOWN_HINTS } from "@/lib/roadmap/noteMarkdown";
+import NoteMarkdownContent from "./NoteMarkdownContent";
 import RoadmapDeleteConfirmModal from "./RoadmapDeleteConfirmModal";
+
+function ExpandIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+    </svg>
+  );
+}
 
 export default function AnnotationSettingsModal({ annotation, onClose, onChange, onDelete }) {
   const [draft, setDraft] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [underlineOpen, setUnderlineOpen] = useState(false);
+  const [noteExpanded, setNoteExpanded] = useState(false);
+  const [noteEditorTab, setNoteEditorTab] = useState("edit");
 
+  // Sadece annotation kimliği değişince formu sıfırla.
+  // Her title patch'inde annotation referansı değişir; aksi halde büyütülmüş editör kapanır.
   useEffect(() => {
-    if (annotation) {
-      setDraft({ ...annotation });
-      setShowDeleteConfirm(false);
-      setUnderlineOpen(Boolean(annotation.underlineEnabled));
-    } else {
+    if (!annotation) {
       setDraft(null);
       setShowDeleteConfirm(false);
       setUnderlineOpen(false);
+      setNoteExpanded(false);
+      setNoteEditorTab("edit");
+      return;
     }
-  }, [annotation]);
+    setDraft({ ...annotation });
+    setShowDeleteConfirm(false);
+    setUnderlineOpen(Boolean(annotation.underlineEnabled));
+    setNoteExpanded(false);
+    setNoteEditorTab("edit");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-init when switching items
+  }, [annotation?.id]);
 
   if (!annotation || !draft) return null;
 
@@ -58,16 +83,124 @@ export default function AnnotationSettingsModal({ annotation, onClose, onChange,
             {typeDef.label} Ayarları
           </h2>
           <div className="mt-4 space-y-4">
-            {!isLine && draft.type !== "frame" && draft.type !== "checkbox" && (
+            {!isLine &&
+              draft.type !== "frame" &&
+              draft.type !== "checkbox" &&
+              draft.type !== "link" &&
+              draft.type !== "progress" && (
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Metin</label>
-                <textarea
-                  rows={draft.type === "note" ? 4 : 2}
-                  value={draft.title}
-                  onChange={(e) => patch({ title: e.target.value })}
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                />
+                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                  {draft.type === "note" ? "Not (Markdown)" : "Metin"}
+                </label>
+                <div className="relative">
+                  <textarea
+                    rows={draft.type === "note" ? 4 : 2}
+                    value={draft.title || ""}
+                    onChange={(e) => patch({ title: e.target.value })}
+                    placeholder={
+                      draft.type === "note"
+                        ? "# Başlık\n[] Görev\n- Madde\n> Detay"
+                        : draft.type === "heading"
+                          ? "Başlık yaz…"
+                          : "Metin yaz…"
+                    }
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 pr-9 text-sm placeholder:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  />
+                  {draft.type === "note" ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNoteEditorTab("edit");
+                        setNoteExpanded(true);
+                      }}
+                      title="Büyüt"
+                      aria-label="Not alanını büyüt"
+                      className="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md border border-zinc-200 bg-white text-zinc-500 shadow-sm transition hover:bg-zinc-50 hover:text-zinc-800 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                    >
+                      <ExpandIcon className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                </div>
+                {draft.type === "note" ? (
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    Markdown destekli · büyütmek için köşe ikonuna tıkla
+                  </p>
+                ) : null}
               </div>
+            )}
+
+            {draft.type === "link" && (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-500">Görünen metin</label>
+                  <input
+                    value={draft.title}
+                    onChange={(e) => patch({ title: e.target.value })}
+                    placeholder="Bağlantı başlığı"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-500">URL</label>
+                  <input
+                    type="url"
+                    value={draft.url || ""}
+                    onChange={(e) => patch({ url: e.target.value })}
+                    onBlur={(e) => {
+                      const normalized = normalizeLinkUrl(e.target.value);
+                      if (normalized && normalized !== e.target.value) patch({ url: normalized });
+                    }}
+                    placeholder="https://ornek.com"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                  />
+                  <p className="mt-1 text-[11px] text-zinc-400">Tıklanınca yeni sekmede açılır</p>
+                </div>
+              </>
+            )}
+
+            {draft.type === "progress" && (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-500">Başlık</label>
+                  <input
+                    value={draft.title || ""}
+                    onChange={(e) => patch({ title: e.target.value })}
+                    placeholder="Hedef adı"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-500">Açıklama</label>
+                  <textarea
+                    rows={3}
+                    value={draft.description || ""}
+                    onChange={(e) => patch({ description: e.target.value })}
+                    placeholder="Hedef detayı…"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-500">
+                    İlerleme (%{clampProgress(draft.progress)})
+                  </label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={clampProgress(draft.progress)}
+                    onChange={(e) => patch({ progress: clampProgress(e.target.value) })}
+                    className="w-full"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={clampProgress(draft.progress)}
+                    onChange={(e) => patch({ progress: clampProgress(e.target.value) })}
+                    className="mt-2 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800"
+                  />
+                </div>
+              </>
             )}
 
             {draft.type === "frame" && (
@@ -87,9 +220,10 @@ export default function AnnotationSettingsModal({ annotation, onClose, onChange,
                 <div>
                   <label className="mb-1 block text-xs font-medium text-zinc-500">Metin</label>
                   <input
-                    value={draft.title}
+                    value={draft.title || ""}
                     onChange={(e) => patch({ title: e.target.value })}
-                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                    placeholder="Görev metni"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm placeholder:text-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   />
                 </div>
                 <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-700 dark:text-zinc-200">
@@ -372,6 +506,121 @@ export default function AnnotationSettingsModal({ annotation, onClose, onChange,
           </div>
         </div>
       </div>
+
+      {noteExpanded && draft.type === "note" ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-3 sm:p-6"
+          onClick={() => setNoteExpanded(false)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setNoteExpanded(false);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Not düzenleyici"
+            className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800 sm:px-5">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Not düzenle</h3>
+                <p className="text-xs text-zinc-500">Markdown ile yapılandırılmış not yaz</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div
+                  className="flex items-center rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800"
+                  role="tablist"
+                  aria-label="Not görünümü"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={noteEditorTab === "edit"}
+                    onClick={() => setNoteEditorTab("edit")}
+                    className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                      noteEditorTab === "edit"
+                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50"
+                        : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400"
+                    }`}
+                  >
+                    Düzenle
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={noteEditorTab === "preview"}
+                    onClick={() => setNoteEditorTab("preview")}
+                    className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                      noteEditorTab === "preview"
+                        ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-zinc-50"
+                        : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400"
+                    }`}
+                  >
+                    Önizleme
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNoteExpanded(false)}
+                  className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  Tamam
+                </button>
+              </div>
+            </div>
+
+            <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[1fr_220px]">
+              <div className="min-h-0 p-4 sm:p-5">
+                {noteEditorTab === "edit" ? (
+                  <textarea
+                    autoFocus
+                    value={draft.title}
+                    onChange={(e) => patch({ title: e.target.value })}
+                    placeholder={"# Başlık\n\n[] Yapılacak\n- Madde\n1. Adım\n\n> Detaylar\n  Gizli içerik\n\n\"\" Alıntı\n\n---"}
+                    className="h-[min(62vh,520px)] w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 font-mono text-sm leading-relaxed text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  />
+                ) : (
+                  <div
+                    className="h-[min(62vh,520px)] overflow-auto rounded-xl border border-zinc-200 p-4 shadow-inner dark:border-zinc-700"
+                    style={{ backgroundColor: draft.backgroundColor || "#fef08a" }}
+                  >
+                    <NoteMarkdownContent
+                      source={draft.title}
+                      color={draft.color || "#713f12"}
+                      fontSize={draft.fontSize || 14}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <aside className="border-t border-zinc-100 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/60 md:border-l md:border-t-0">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+                  Kısayollar
+                </p>
+                <ul className="space-y-1.5">
+                  {NOTE_MARKDOWN_HINTS.map((hint) => (
+                    <li
+                      key={hint.syn}
+                      className="flex items-start gap-2 text-[11px] leading-snug text-zinc-600 dark:text-zinc-300"
+                    >
+                      <code className="shrink-0 rounded bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-zinc-800 shadow-sm dark:bg-zinc-800 dark:text-zinc-100">
+                        {hint.syn}
+                      </code>
+                      <span>{hint.desc}</span>
+                    </li>
+                  ))}
+                </ul>
+              </aside>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <RoadmapDeleteConfirmModal
         open={showDeleteConfirm}

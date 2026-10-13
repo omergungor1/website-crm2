@@ -41,11 +41,14 @@ export async function PUT(request, { params }) {
   if (!allowed) return NextResponse.json({ error: "Erişim yok" }, { status: 403 });
 
   const body = await request.json();
-  const { google_analytics_id, google_search_console, supabase_account } = body;
+  const updates = {};
+  for (const field of ["google_analytics_id", "google_search_console", "supabase_account"]) {
+    if (body[field] !== undefined) updates[field] = body[field];
+  }
 
   const { data, error } = await supabase
     .from("site_settings")
-    .update({ google_analytics_id, google_search_console, supabase_account })
+    .update(updates)
     .eq("project_id", projectId)
     .select()
     .single();

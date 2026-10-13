@@ -15,7 +15,7 @@ function sortProjects(list) {
   });
 }
 
-function loadProjects() {
+export function preloadProjects() {
   if (cachedProjects) return Promise.resolve(cachedProjects);
   if (projectsFetchPromise) return projectsFetchPromise;
 
@@ -59,15 +59,13 @@ function ProjectRow({ project, active, href, onNavigate }) {
   return (
     <Link
       href={href}
-      onClick={onNavigate}
-      className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+      onClick={() => onNavigate?.(href)}
+      className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm transition-colors ${
         active
-          ? favorited
-            ? "bg-amber-50 font-medium text-zinc-900 dark:bg-amber-950/30 dark:text-zinc-100"
-            : "bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+          ? "bg-[var(--brand-soft)] font-semibold text-[var(--brand)]"
           : favorited
-            ? "text-zinc-800 hover:bg-amber-50/80 dark:text-zinc-200 dark:hover:bg-amber-950/20"
-            : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            ? "text-zinc-800 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
       }`}
     >
       <StarIcon
@@ -92,14 +90,7 @@ export default function ProjectSwitcher({ onNavigate }) {
   useEffect(() => {
     let cancelled = false;
 
-    if (cachedProjects) {
-      setProjects(sortProjects(cachedProjects));
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    loadProjects().then((items) => {
+    preloadProjects().then((items) => {
       if (!cancelled) {
         setProjects(items);
         setLoading(false);
@@ -127,23 +118,12 @@ export default function ProjectSwitcher({ onNavigate }) {
   }
 
   return (
-    <div className="max-h-72 overflow-y-auto py-1">
-      <Link
-        href="/dashboard"
-        onClick={onNavigate}
-        className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-          pathname === "/dashboard"
-            ? "bg-zinc-100 font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
-            : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
-        }`}
-      >
-        Ana Sayfa
-      </Link>
-
-      <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
-
+    <div className="max-h-72 overflow-y-auto p-1.5">
       {loading && projects.length === 0 ? (
-        <p className="px-3 py-2 text-sm text-zinc-400">Yükleniyor…</p>
+        <div className="flex items-center gap-2 px-2.5 py-2 text-sm text-zinc-400">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-[var(--brand)]" />
+          Yükleniyor…
+        </div>
       ) : projects.length === 0 ? (
         <p className="px-3 py-2 text-sm text-zinc-400">Henüz proje yok</p>
       ) : (

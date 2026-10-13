@@ -11,6 +11,34 @@ export async function PATCH(request, { params }) {
   const body = await request.json();
   const updates = { updated_at: new Date().toISOString() };
 
+  if (body.kanban_status !== undefined) {
+    const status = String(body.kanban_status);
+    const allowedStatuses = ["todo", "in_progress", "completed", "archived"];
+    if (!allowedStatuses.includes(status)) {
+      return NextResponse.json({ error: "Geçersiz Kanban durumu" }, { status: 400 });
+    }
+
+    if (status === "todo") {
+      updates.is_completed = false;
+      updates.completed_at = null;
+      updates.is_later = false;
+      updates.is_archived = false;
+    } else if (status === "in_progress") {
+      updates.is_completed = false;
+      updates.completed_at = null;
+      updates.is_later = true;
+      updates.is_archived = false;
+    } else if (status === "completed") {
+      updates.is_completed = true;
+      updates.completed_at = new Date().toISOString();
+      updates.is_later = false;
+      updates.is_archived = false;
+    } else {
+      updates.is_later = false;
+      updates.is_archived = true;
+    }
+  }
+
   if (body.title !== undefined) {
     const trimmed = String(body.title).trim();
     if (!trimmed) return NextResponse.json({ error: "Todo metni boş olamaz" }, { status: 400 });

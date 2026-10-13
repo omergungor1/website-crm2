@@ -22,3 +22,11 @@ For a description of the Bot API, see this page: https://core.telegram.org/bots/
    app.websitealsat.com
    ```
 6. `db.sql` içindeki `telegram_*` tablolarını Supabase'de çalıştır.
+
+## Günlük proaktif öneriler — KAPALI
+
+Sabah/öğleden sonra otomatik proje analizi + Telegram mesajı **kapatıldı**:
+- `vercel.json` → `crons: []`
+- `/api/telegram/cron/suggestions` → her zaman `{ disabled: true }` döner, mesaj göndermez
+
+İnteraktif bot (webhook / sohbet) bundan etkilenmez; sadece zamanlanmış “günlük analiz” kapalı.

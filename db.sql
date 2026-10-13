@@ -7,6 +7,7 @@ create table projects (
 
   name text not null,
   description text,
+  logo_url text,
   setup_prompt text default '',
 
   type text default 'landing_page'
@@ -48,6 +49,8 @@ create table project_todos (
 );
 
 -- Mevcut veritabanı için (bir kez):
+-- alter table projects add column if not exists logo_url text;
+-- Media Studio tabloları: sql/003_media_studio.sql
 -- alter table project_todos add column if not exists is_deleted boolean not null default false;
 -- alter table project_todos add column if not exists deleted_at timestamptz;
 -- alter table project_todos add column if not exists is_later boolean not null default false;

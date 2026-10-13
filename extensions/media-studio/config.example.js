@@ -1,0 +1,4 @@
+// Bu dosyayı config.js olarak kopyalayın ve değerleri doldurun.
+export const APP_ORIGIN = "https://your-app.example.com";
+export const SUPABASE_URL = "https://YOUR_PROJECT.supabase.co";
+export const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";

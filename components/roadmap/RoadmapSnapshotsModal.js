@@ -164,7 +164,7 @@ export default function RoadmapSnapshotsModal({
               <button
                 type="button"
                 onClick={() => setCaptureOpen((v) => !v)}
-                className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 dark:hover:text-zinc-900"
               >
                 {captureOpen ? "İptal" : "Yeni Snapshot"}
               </button>

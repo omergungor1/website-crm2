@@ -15,13 +15,15 @@ import {
   buildLinePath,
   createAnnotation,
   isBackBoxType,
+  isFrontBoxType,
   isLineType,
   isMediaBoxType,
   isResizableBoxType,
 } from "@/lib/roadmap/annotations";
+import { toggleNoteTodoAtLine } from "@/lib/roadmap/noteMarkdown";
 import {
   buildEdgePath,
-  canvasFingerprint,
+  contentFingerprint,
   getAnchorButtonPosition,
   getAnchorPoint,
   getCanvasCenter,
@@ -40,6 +42,18 @@ import RoadmapToolbox from "./RoadmapToolbox";
 import { captureRoadmapCanvas } from "@/lib/roadmap/captureViewport";
 import { buildAlignableItems, computeAlignmentMoves } from "@/lib/roadmap/alignSelection";
 import RoadmapAlignMenu from "./RoadmapAlignMenu";
+import RoadmapContextMenu from "./RoadmapContextMenu";
+import SiteTodoModal from "@/components/SiteTodoModal";
+
+function TodoIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l2 2 4-4" />
+    </svg>
+  );
+}
 
 function countAnchorUsage(edges, nodeId, anchor) {
   return edges.filter(
@@ -52,9 +66,11 @@ function countAnchorUsage(edges, nodeId, anchor) {
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.1;
+const DEFAULT_OPEN_ZOOM = 0.55;
 const DUPLICATE_OFFSET = 24;
 const MARQUEE_MIN_SIZE = 4;
 const RESIZE_MIN_SIZE = 40;
+const HISTORY_MAX = 40;
 
 function rectsIntersect(a, b) {
   return !(
@@ -116,26 +132,262 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   const [addTodoOpen, setAddTodoOpen] = useState(false);
   const [addTodoSaving, setAddTodoSaving] = useState(false);
   const [addTodoError, setAddTodoError] = useState("");
+  const [siteTodoOpen, setSiteTodoOpen] = useState(false);
   const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [revisionsOpen, setRevisionsOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
   const [snapshotCaptureMode, setSnapshotCaptureMode] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [modifierKeyHeld, setModifierKeyHeld] = useState(false);
   const [marquee, setMarquee] = useState(null);
+  const [historyUi, setHistoryUi] = useState({ canUndo: false, canRedo: false });
   const canvasRef = useRef(null);
   const canvasCaptureRef = useRef(null);
   const saveTimerRef = useRef(null);
+  const savingRef = useRef(false);
+  const savedFingerprintRef = useRef("");
   const zoomRef = useRef(1);
   const pendingZoomScrollRef = useRef(null);
+  const moreMenuRef = useRef(null);
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  const annotationsRef = useRef(annotations);
+  const historyPastRef = useRef([]);
+  const historyFutureRef = useRef([]);
+  const historyCoalesceKeyRef = useRef(null);
+  const applyingHistoryRef = useRef(false);
+  const pendingDragHistoryRef = useRef(null);
 
   useEffect(() => {
     zoomRef.current = zoom;
   }, [zoom]);
 
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+
+  useEffect(() => {
+    annotationsRef.current = annotations;
+  }, [annotations]);
+
+  function syncHistoryUi() {
+    setHistoryUi({
+      canUndo: historyPastRef.current.length > 0,
+      canRedo: historyFutureRef.current.length > 0,
+    });
+  }
+
+  function cloneCanvasContent() {
+    return {
+      nodes: structuredClone(nodesRef.current),
+      edges: structuredClone(edgesRef.current),
+      annotations: structuredClone(annotationsRef.current),
+    };
+  }
+
+  function pushHistory(coalesceKey = null) {
+    if (applyingHistoryRef.current) return;
+    if (coalesceKey != null && historyCoalesceKeyRef.current === coalesceKey) return;
+
+    historyPastRef.current.push(cloneCanvasContent());
+    if (historyPastRef.current.length > HISTORY_MAX) {
+      historyPastRef.current.shift();
+    }
+    historyFutureRef.current = [];
+    historyCoalesceKeyRef.current = coalesceKey;
+    syncHistoryUi();
+  }
+
+  function pushHistoryDiscrete() {
+    historyCoalesceKeyRef.current = null;
+    pushHistory(null);
+  }
+
+  function commitPendingDragHistory() {
+    if (!pendingDragHistoryRef.current || applyingHistoryRef.current) return;
+    historyPastRef.current.push(pendingDragHistoryRef.current);
+    if (historyPastRef.current.length > HISTORY_MAX) {
+      historyPastRef.current.shift();
+    }
+    historyFutureRef.current = [];
+    historyCoalesceKeyRef.current = null;
+    pendingDragHistoryRef.current = null;
+    syncHistoryUi();
+  }
+
+  function clearHistory() {
+    historyPastRef.current = [];
+    historyFutureRef.current = [];
+    historyCoalesceKeyRef.current = null;
+    syncHistoryUi();
+  }
+
+  function restoreHistorySnapshot(snapshot) {
+    applyingHistoryRef.current = true;
+    setNodes(snapshot.nodes);
+    setEdges(snapshot.edges);
+    setAnnotations(snapshot.annotations);
+    historyCoalesceKeyRef.current = null;
+    syncHistoryUi();
+    queueMicrotask(() => {
+      applyingHistoryRef.current = false;
+    });
+  }
+
+  function undo() {
+    if (!historyPastRef.current.length) return;
+    historyFutureRef.current.push(cloneCanvasContent());
+    const prev = historyPastRef.current.pop();
+    restoreHistorySnapshot(prev);
+  }
+
+  function redo() {
+    if (!historyFutureRef.current.length) return;
+    historyPastRef.current.push(cloneCanvasContent());
+    const next = historyFutureRef.current.pop();
+    restoreHistorySnapshot(next);
+  }
+
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    function onPointerDown(e) {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) {
+        setMoreMenuOpen(false);
+      }
+    }
+    function onKeyDown(e) {
+      if (e.key === "Escape") setMoreMenuOpen(false);
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [moreMenuOpen]);
+
   function clearSelection() {
     setSelectedNodeIds([]);
     setSelectedAnnotationIds([]);
     setSelectedEdgeId(null);
+  }
+
+  function closeContextMenu() {
+    setContextMenu(null);
+  }
+
+  function openItemContextMenu(e, { nodeId = null, annotationId = null } = {}) {
+    e.preventDefault();
+    e.stopPropagation();
+    setMoreMenuOpen(false);
+
+    let nodeIds = selectedNodeIds;
+    let annotationIds = selectedAnnotationIds;
+
+    if (nodeId) {
+      if (!selectedNodeIds.includes(nodeId)) {
+        nodeIds = [nodeId];
+        annotationIds = [];
+        setSelectedNodeIds(nodeIds);
+        setSelectedAnnotationIds(annotationIds);
+      }
+    } else if (annotationId) {
+      if (!selectedAnnotationIds.includes(annotationId)) {
+        nodeIds = [];
+        annotationIds = [annotationId];
+        setSelectedNodeIds(nodeIds);
+        setSelectedAnnotationIds(annotationIds);
+      }
+    } else {
+      return;
+    }
+
+    setSelectedEdgeId(null);
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      nodeIds,
+      annotationIds,
+    });
+  }
+
+  function bringSelectionToFront(nodeIds, annotationIds) {
+    if (nodeIds.length === 0 && annotationIds.length === 0) return;
+    pushHistoryDiscrete();
+    if (nodeIds.length > 0) {
+      const ids = new Set(nodeIds);
+      setNodes((prev) => {
+        const moving = prev.filter((n) => ids.has(n.id));
+        const rest = prev.filter((n) => !ids.has(n.id));
+        return [...rest, ...moving];
+      });
+    }
+    if (annotationIds.length > 0) {
+      const ids = new Set(annotationIds);
+      setAnnotations((prev) => {
+        const moving = prev.filter((a) => ids.has(a.id));
+        const rest = prev.filter((a) => !ids.has(a.id));
+        return [...rest, ...moving];
+      });
+    }
+  }
+
+  function sendSelectionToBack(nodeIds, annotationIds) {
+    if (nodeIds.length === 0 && annotationIds.length === 0) return;
+    pushHistoryDiscrete();
+    if (nodeIds.length > 0) {
+      const ids = new Set(nodeIds);
+      setNodes((prev) => {
+        const moving = prev.filter((n) => ids.has(n.id));
+        const rest = prev.filter((n) => !ids.has(n.id));
+        return [...moving, ...rest];
+      });
+    }
+    if (annotationIds.length > 0) {
+      const ids = new Set(annotationIds);
+      setAnnotations((prev) => {
+        const moving = prev.filter((a) => ids.has(a.id));
+        const rest = prev.filter((a) => !ids.has(a.id));
+        return [...moving, ...rest];
+      });
+    }
+  }
+
+  function deleteSelectionItems(nodeIds, annotationIds) {
+    if (nodeIds.length === 0 && annotationIds.length === 0) return;
+    pushHistoryDiscrete();
+    if (nodeIds.length > 0) {
+      const ids = new Set(nodeIds);
+      setNodes((prev) => prev.filter((n) => !ids.has(n.id)));
+      setEdges((prev) =>
+        prev.filter((edge) => !ids.has(edge.fromNodeId) && !ids.has(edge.toNodeId))
+      );
+      setSelectedNodeIds([]);
+      setSettingsNodeId(null);
+    }
+    if (annotationIds.length > 0) {
+      const ids = new Set(annotationIds);
+      setAnnotations((prev) => prev.filter((a) => !ids.has(a.id)));
+      setSelectedAnnotationIds([]);
+      setSettingsAnnotationId(null);
+      setImageSettingsId(null);
+      setVideoSettingsId(null);
+    }
+  }
+
+  function handleContextMenuAction(action) {
+    if (!contextMenu) return;
+    const { nodeIds, annotationIds } = contextMenu;
+    if (action === "front") bringSelectionToFront(nodeIds, annotationIds);
+    else if (action === "back") sendSelectionToBack(nodeIds, annotationIds);
+    else if (action === "duplicate") duplicateSelection(nodeIds, annotationIds);
+    else if (action === "delete") deleteSelectionItems(nodeIds, annotationIds);
+    closeContextMenu();
   }
 
   const clientToCanvas = useCallback((clientX, clientY) => {
@@ -231,21 +483,30 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     };
   }, []);
 
-  function applyCanvasData(canvasData) {
-    const normalized = normalizeCanvasData(canvasData);
-    setNodes(normalized.nodes);
-    setEdges(normalized.edges);
-    setAnnotations(normalized.annotations);
-    setViewport(normalized.viewport);
-    setSavedFingerprint(canvasFingerprint(normalized));
-    clearSelection();
+  function applyOpenView() {
+    zoomRef.current = DEFAULT_OPEN_ZOOM;
+    setZoom(DEFAULT_OPEN_ZOOM);
+    setViewport({ scrollX: 0, scrollY: 0 });
     requestAnimationFrame(() => {
       const el = canvasRef.current;
       if (el) {
-        el.scrollLeft = normalized.viewport.scrollX;
-        el.scrollTop = normalized.viewport.scrollY;
+        el.scrollLeft = 0;
+        el.scrollTop = 0;
       }
     });
+  }
+
+  function applyCanvasData(canvasData) {
+    const normalized = normalizeCanvasData(canvasData);
+    const fingerprint = contentFingerprint(normalized);
+    setNodes(normalized.nodes);
+    setEdges(normalized.edges);
+    setAnnotations(normalized.annotations);
+    savedFingerprintRef.current = fingerprint;
+    setSavedFingerprint(fingerprint);
+    clearHistory();
+    clearSelection();
+    applyOpenView();
   }
 
   function buildSelectionOrigins(nodeIds, annotationIds) {
@@ -290,7 +551,8 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }
 
   const canvasData = { viewport, nodes, edges, annotations };
-  const isDirty = savedFingerprint !== canvasFingerprint(canvasData);
+  const currentContentFingerprint = contentFingerprint(canvasData);
+  const isDirty = savedFingerprint !== currentContentFingerprint;
   const settingsNode = nodes.find((n) => n.id === settingsNodeId) || null;
   const settingsAnnotation = annotations.find((a) => a.id === settingsAnnotationId) || null;
   const imageSettingsAnnotation = annotations.find((a) => a.id === imageSettingsId) || null;
@@ -298,9 +560,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   const backBoxAnnotations = annotations.filter((a) => isBackBoxType(a.type));
   const lineAnnotations = annotations.filter((a) => isLineType(a.type));
-  const frontAnnotations = annotations.filter((a) =>
-    ["heading", "text", "note", "checkbox"].includes(a.type)
-  );
+  const frontAnnotations = annotations.filter((a) => isFrontBoxType(a.type));
   const resizableSelectedAnnotations = annotations.filter(
     (a) => isResizableBoxType(a.type) && selectedAnnotationIds.includes(a.id)
   );
@@ -316,6 +576,8 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       );
       const moves = computeAlignmentMoves(action, items);
       if (!moves.length) return;
+
+      pushHistoryDiscrete();
 
       const moveByNode = new Map();
       const moveByAnnotation = new Map();
@@ -414,19 +676,15 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         if (!res.ok) throw new Error(data.error || "Yüklenemedi");
         if (cancelled) return;
         const normalized = normalizeCanvasData(data.canvas_data);
+        const fingerprint = contentFingerprint(normalized);
         setNodes(normalized.nodes);
         setEdges(normalized.edges);
         setAnnotations(normalized.annotations);
-        setViewport(normalized.viewport);
-        setSavedFingerprint(canvasFingerprint(normalized));
+        savedFingerprintRef.current = fingerprint;
+        setSavedFingerprint(fingerprint);
+        clearHistory();
         setHydrated(true);
-        requestAnimationFrame(() => {
-          const el = canvasRef.current;
-          if (el) {
-            el.scrollLeft = normalized.viewport.scrollX;
-            el.scrollTop = normalized.viewport.scrollY;
-          }
-        });
+        applyOpenView();
       } catch (err) {
         if (!cancelled) {
           setLoadError(err?.message || "RoadMap yüklenemedi");
@@ -442,10 +700,19 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }, [apiUrl]);
 
   const saveCanvas = useCallback(async (data) => {
+    if (savingRef.current) return;
+    const normalized = normalizeCanvasData(data);
+    const fingerprint = contentFingerprint(normalized);
+    // Zaten kayıtlı içerikle aynıysa tekrar yazma
+    if (fingerprint === savedFingerprintRef.current) {
+      setSavedFingerprint(fingerprint);
+      return;
+    }
+
+    savingRef.current = true;
     setSaving(true);
     setSaveMsg("");
     try {
-      const normalized = normalizeCanvasData(data);
       const res = await fetch(apiUrl, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -453,113 +720,121 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Kaydedilemedi");
-      setSavedFingerprint(canvasFingerprint(result.canvas_data));
+      // Sunucu yanıtı yerine gönderilen içeriğin hash'ini kullan — mismatch döngüsünü önler
+      savedFingerprintRef.current = fingerprint;
+      setSavedFingerprint(fingerprint);
       setSaveMsg("Kaydedildi");
       setTimeout(() => setSaveMsg(""), 2000);
     } catch (e) {
       setSaveMsg(e.message || "Hata");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }, [apiUrl]);
 
   const saveNow = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    const el = canvasRef.current;
-    const vp = el ? { scrollX: el.scrollLeft, scrollY: el.scrollTop } : viewport;
-    saveCanvas({ viewport: vp, nodes, edges, annotations });
-  }, [nodes, edges, annotations, viewport, saveCanvas]);
+    // Viewport kaydı scroll/zoom ile tetiklenmez; içerik kaydında sabit başlangıç viewport yazılır
+    saveCanvas({ viewport: { scrollX: 0, scrollY: 0 }, nodes, edges, annotations });
+  }, [nodes, edges, annotations, saveCanvas]);
 
   useEffect(() => {
     if (loading || !hydrated || loadError) return;
-    if (!isDirty) return;
+    if (!isDirty || savingRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      const el = canvasRef.current;
-      const vp = el
-        ? { scrollX: el.scrollLeft, scrollY: el.scrollTop }
-        : viewport;
-      saveCanvas({ viewport: vp, nodes, edges, annotations });
+      if (savingRef.current) return;
+      saveCanvas({ viewport: { scrollX: 0, scrollY: 0 }, nodes, edges, annotations });
     }, 900);
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [nodes, edges, annotations, viewport, loading, hydrated, loadError, isDirty, saveCanvas]);
+  }, [nodes, edges, annotations, loading, hydrated, loadError, isDirty, saveCanvas]);
 
-  const duplicateSelection = useCallback(() => {
-    if (selectedNodeIds.length === 0 && selectedAnnotationIds.length === 0) return;
+  const duplicateSelection = useCallback(
+    (overrideNodeIds, overrideAnnotationIds) => {
+      const nodeIds = overrideNodeIds ?? selectedNodeIds;
+      const annotationIds = overrideAnnotationIds ?? selectedAnnotationIds;
+      if (nodeIds.length === 0 && annotationIds.length === 0) return;
 
-    const idMap = {};
-    const newNodeIds = [];
-    const newAnnotationIds = [];
+      const idMap = {};
+      const newNodeIds = [];
+      const newAnnotationIds = [];
 
-    if (selectedNodeIds.length > 0) {
-      const selectedSet = new Set(selectedNodeIds);
-      const clonedNodes = nodes
-        .filter((n) => selectedSet.has(n.id))
-        .map((n) => {
-          const newId = nanoid(10);
-          idMap[n.id] = newId;
-          newNodeIds.push(newId);
-          return {
-            ...n,
-            id: newId,
-            x: n.x + DUPLICATE_OFFSET,
-            y: n.y + DUPLICATE_OFFSET,
-          };
-        });
+      if (nodeIds.length === 0 && annotationIds.length === 0) return;
 
-      const clonedEdges = edges
-        .filter((edge) => selectedSet.has(edge.fromNodeId) && selectedSet.has(edge.toNodeId))
-        .map((edge) => ({
-          ...edge,
-          id: nanoid(10),
-          fromNodeId: idMap[edge.fromNodeId],
-          toNodeId: idMap[edge.toNodeId],
-        }));
+      pushHistoryDiscrete();
 
-      setNodes((prev) => [...prev, ...clonedNodes]);
-      if (clonedEdges.length > 0) {
-        setEdges((prev) => [...prev, ...clonedEdges]);
+      if (nodeIds.length > 0) {
+        const selectedSet = new Set(nodeIds);
+        const clonedNodes = nodes
+          .filter((n) => selectedSet.has(n.id))
+          .map((n) => {
+            const newId = nanoid(10);
+            idMap[n.id] = newId;
+            newNodeIds.push(newId);
+            return {
+              ...n,
+              id: newId,
+              x: n.x + DUPLICATE_OFFSET,
+              y: n.y + DUPLICATE_OFFSET,
+            };
+          });
+
+        const clonedEdges = edges
+          .filter((edge) => selectedSet.has(edge.fromNodeId) && selectedSet.has(edge.toNodeId))
+          .map((edge) => ({
+            ...edge,
+            id: nanoid(10),
+            fromNodeId: idMap[edge.fromNodeId],
+            toNodeId: idMap[edge.toNodeId],
+          }));
+
+        setNodes((prev) => [...prev, ...clonedNodes]);
+        if (clonedEdges.length > 0) {
+          setEdges((prev) => [...prev, ...clonedEdges]);
+        }
       }
-    }
 
-    if (selectedAnnotationIds.length > 0) {
-      const selectedSet = new Set(selectedAnnotationIds);
-      const clonedAnnotations = annotations
-        .filter((a) => selectedSet.has(a.id))
-        .map((a) => {
-          const newId = nanoid(10);
-          newAnnotationIds.push(newId);
-          if (isLineType(a.type)) {
+      if (annotationIds.length > 0) {
+        const selectedSet = new Set(annotationIds);
+        const clonedAnnotations = annotations
+          .filter((a) => selectedSet.has(a.id))
+          .map((a) => {
+            const newId = nanoid(10);
+            newAnnotationIds.push(newId);
+            if (isLineType(a.type)) {
+              return {
+                ...a,
+                id: newId,
+                x1: a.x1 + DUPLICATE_OFFSET,
+                y1: a.y1 + DUPLICATE_OFFSET,
+                x2: a.x2 + DUPLICATE_OFFSET,
+                y2: a.y2 + DUPLICATE_OFFSET,
+              };
+            }
             return {
               ...a,
               id: newId,
-              x1: a.x1 + DUPLICATE_OFFSET,
-              y1: a.y1 + DUPLICATE_OFFSET,
-              x2: a.x2 + DUPLICATE_OFFSET,
-              y2: a.y2 + DUPLICATE_OFFSET,
+              x: a.x + DUPLICATE_OFFSET,
+              y: a.y + DUPLICATE_OFFSET,
             };
-          }
-          return {
-            ...a,
-            id: newId,
-            x: a.x + DUPLICATE_OFFSET,
-            y: a.y + DUPLICATE_OFFSET,
-          };
-        });
+          });
 
-      setAnnotations((prev) => [...prev, ...clonedAnnotations]);
-    }
+        setAnnotations((prev) => [...prev, ...clonedAnnotations]);
+      }
 
-    setSelectedNodeIds(newNodeIds);
-    setSelectedAnnotationIds(newAnnotationIds);
-    setSelectedEdgeId(null);
-    setSettingsNodeId(null);
-    setSettingsAnnotationId(null);
-    setImageSettingsId(null);
-    setVideoSettingsId(null);
-  }, [nodes, edges, annotations, selectedNodeIds, selectedAnnotationIds]);
+      setSelectedNodeIds(newNodeIds);
+      setSelectedAnnotationIds(newAnnotationIds);
+      setSelectedEdgeId(null);
+      setSettingsNodeId(null);
+      setSettingsAnnotationId(null);
+      setImageSettingsId(null);
+      setVideoSettingsId(null);
+    },
+    [nodes, edges, annotations, selectedNodeIds, selectedAnnotationIds]
+  );
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -572,6 +847,21 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         return;
       }
 
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        if (inField) return;
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+        if (inField) return;
+        e.preventDefault();
+        redo();
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
         if (inField) return;
         if (selectedNodeIds.length > 0 || selectedAnnotationIds.length > 0) {
@@ -581,11 +871,18 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         return;
       }
 
-      if (e.key === "Escape" && linking) {
-        e.preventDefault();
-        setLinking(null);
-        setLinkPointer(null);
-        return;
+      if (e.key === "Escape") {
+        if (contextMenu) {
+          e.preventDefault();
+          closeContextMenu();
+          return;
+        }
+        if (linking) {
+          e.preventDefault();
+          setLinking(null);
+          setLinkPointer(null);
+          return;
+        }
       }
 
       if (e.key !== "Delete" && e.key !== "Backspace") return;
@@ -593,26 +890,13 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
       if (selectedNodeIds.length > 0 || selectedAnnotationIds.length > 0) {
         e.preventDefault();
-        if (selectedNodeIds.length > 0) {
-          const ids = new Set(selectedNodeIds);
-          setNodes((prev) => prev.filter((n) => !ids.has(n.id)));
-          setEdges((prev) =>
-            prev.filter((edge) => !ids.has(edge.fromNodeId) && !ids.has(edge.toNodeId))
-          );
-          setSelectedNodeIds([]);
-          setSettingsNodeId(null);
-        }
-        if (selectedAnnotationIds.length > 0) {
-          const ids = new Set(selectedAnnotationIds);
-          setAnnotations((prev) => prev.filter((a) => !ids.has(a.id)));
-          setSelectedAnnotationIds([]);
-          setSettingsAnnotationId(null);
-        }
+        deleteSelectionItems(selectedNodeIds, selectedAnnotationIds);
         return;
       }
 
       if (selectedEdgeId) {
         e.preventDefault();
+        pushHistoryDiscrete();
         setEdges((prev) => prev.filter((edge) => edge.id !== selectedEdgeId));
         setSelectedEdgeId(null);
       }
@@ -624,6 +908,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     selectedAnnotationIds,
     selectedNodeIds,
     linking,
+    contextMenu,
     saveNow,
     duplicateSelection,
   ]);
@@ -634,6 +919,10 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       const z = zoomRef.current || 1;
       const dx = (e.clientX - dragging.startX) / z;
       const dy = (e.clientY - dragging.startY) / z;
+
+      if (pendingDragHistoryRef.current && (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5)) {
+        commitPendingDragHistory();
+      }
 
       if (dragging.target === "selection") {
         const { nodeOrigins, annotationOrigins } = dragging;
@@ -707,7 +996,9 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       }
     }
     function onUp() {
+      pendingDragHistoryRef.current = null;
       setDragging(null);
+      historyCoalesceKeyRef.current = null;
       persistViewport();
     }
     window.addEventListener("pointermove", onMove);
@@ -803,6 +1094,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   function addNode(typeId) {
     const def = getNodeTypeDef(typeId);
     const center = getCanvasCenter(canvasRef.current, zoom);
+    pushHistoryDiscrete();
     setNodes((prev) => [
       ...prev,
       {
@@ -823,6 +1115,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   function addAnnotation(typeId) {
     const center = getCanvasCenter(canvasRef.current, zoom);
     const newId = nanoid(10);
+    pushHistoryDiscrete();
     setAnnotations((prev) => [
       ...prev,
       createAnnotation(typeId, center, prev.length, newId),
@@ -882,6 +1175,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           : [linking.fromNodeId];
         const newEdges = createBulkEdges(sources, linking.fromAnchor, nodeId, anchor);
         if (newEdges.length > 0) {
+          pushHistoryDiscrete();
           setEdges((prev) => [...prev, ...newEdges]);
         }
         setLinking(null);
@@ -930,6 +1224,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       return;
     }
     clearSelection();
+    closeContextMenu();
     const el = canvasRef.current;
     if (!el) return;
     setPanning({
@@ -943,9 +1238,11 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   function startNodeDrag(e, node) {
     if (linking) return;
+    if (e.button !== 0) return;
     if (e.target.closest("button")) return;
     e.stopPropagation();
     e.preventDefault();
+    closeContextMenu();
     setSelectedEdgeId(null);
 
     if (e.ctrlKey || e.metaKey) {
@@ -968,6 +1265,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     }
 
     const { nodeOrigins, annotationOrigins } = buildSelectionOrigins(nodeIds, annotationIds);
+    pendingDragHistoryRef.current = cloneCanvasContent();
     setDragging({
       target: "selection",
       startX: e.clientX,
@@ -979,8 +1277,10 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   function startAnnotationDrag(e, ann) {
     if (linking) return;
+    if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
+    closeContextMenu();
     setSelectedEdgeId(null);
 
     if (e.ctrlKey || e.metaKey) {
@@ -1003,6 +1303,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     }
 
     const { nodeOrigins, annotationOrigins } = buildSelectionOrigins(nodeIds, annotationIds);
+    pendingDragHistoryRef.current = cloneCanvasContent();
     setDragging({
       target: "selection",
       startX: e.clientX,
@@ -1019,6 +1320,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     setSelectedEdgeId(null);
     setSelectedNodeIds([]);
     setSelectedAnnotationIds([ann.id]);
+    pendingDragHistoryRef.current = cloneCanvasContent();
     setDragging({
       target: "annotation-resize",
       id: ann.id,
@@ -1035,6 +1337,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     setSelectedNodeIds([]);
     setSelectedAnnotationIds([ann.id]);
     setSelectedEdgeId(null);
+    pendingDragHistoryRef.current = cloneCanvasContent();
     setDragging({
       target: "annotation-line-end",
       id: ann.id,
@@ -1047,6 +1350,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
 
   function applyNodeDraft(nodeId, patch) {
     const def = patch.type ? getNodeTypeDef(patch.type) : null;
+    pushHistory(`node:${nodeId}`);
     setNodes((prev) =>
       prev.map((n) =>
         n.id === nodeId
@@ -1061,12 +1365,14 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }
 
   function applyAnnotationDraft(annotationId, patch) {
+    pushHistory(`ann:${annotationId}`);
     setAnnotations((prev) =>
       prev.map((a) => (a.id === annotationId ? { ...a, ...patch } : a))
     );
   }
 
   function deleteNode(nodeId) {
+    pushHistoryDiscrete();
     setNodes((prev) => prev.filter((n) => n.id !== nodeId));
     setEdges((prev) => prev.filter((e) => e.fromNodeId !== nodeId && e.toNodeId !== nodeId));
     setSelectedNodeIds((prev) => prev.filter((id) => id !== nodeId));
@@ -1074,6 +1380,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }
 
   function deleteAnnotation(annotationId) {
+    pushHistoryDiscrete();
     setAnnotations((prev) => prev.filter((a) => a.id !== annotationId));
     setSettingsAnnotationId(null);
     setImageSettingsId(null);
@@ -1082,6 +1389,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }
 
   function applyImageDraft(annotationId, patch) {
+    pushHistoryDiscrete();
     setAnnotations((prev) =>
       prev.map((a) => (a.id === annotationId ? { ...a, ...patch } : a))
     );
@@ -1089,6 +1397,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }
 
   function applyVideoDraft(annotationId, patch) {
+    pushHistoryDiscrete();
     setAnnotations((prev) =>
       prev.map((a) => (a.id === annotationId ? { ...a, ...patch } : a))
     );
@@ -1116,7 +1425,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
               ? "cursor-pointer"
               : "cursor-grab";
 
-  function renderBoxAnnotation(ann) {
+  function renderBoxAnnotation(ann, index = 0) {
     const selected = selectedAnnotationIds.includes(ann.id);
     return (
       <div
@@ -1128,17 +1437,24 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           top: ann.y,
           width: ann.width,
           height: ann.height,
-          zIndex: 30,
+          zIndex: 30 + index,
         }}
         onPointerDown={(e) => {
           if (ann.type === "checkbox" && e.target.closest("[data-roadmap-checkbox]")) return;
+          if (ann.type === "link" && e.target.closest("[data-roadmap-link]")) return;
+          if (ann.type === "note" && e.target.closest("[data-roadmap-note-interactive]")) return;
           startAnnotationDrag(e, ann);
         }}
+        onContextMenu={(e) => openItemContextMenu(e, { annotationId: ann.id })}
       >
         <RoadmapAnnotationView
           annotation={ann}
           selected={selected}
           onCheckboxToggle={(checked) => applyAnnotationDraft(ann.id, { checked })}
+          onNoteTodoToggle={(lineIndex) => {
+            const nextTitle = toggleNoteTodoAtLine(ann.title, lineIndex);
+            if (nextTitle !== ann.title) applyAnnotationDraft(ann.id, { title: nextTitle });
+          }}
           onDoubleClick={(e) => {
             e.stopPropagation();
             setSettingsAnnotationId(ann.id);
@@ -1148,7 +1464,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
     );
   }
 
-  function renderFrameVisual(ann) {
+  function renderFrameVisual(ann, index = 0) {
     const selected = selectedAnnotationIds.includes(ann.id);
     return (
       <div
@@ -1159,7 +1475,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           top: ann.y,
           width: ann.width,
           height: ann.height,
-          zIndex: 1,
+          zIndex: 1 + index,
         }}
       >
         <RoadmapAnnotationView
@@ -1190,6 +1506,10 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
       }
     }
 
+    function onChromeContextMenu(e) {
+      openItemContextMenu(e, { annotationId: ann.id });
+    }
+
     const edgeClass =
       "absolute z-[15] cursor-grab active:cursor-grabbing";
 
@@ -1203,6 +1523,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           style={{ left: ann.x, top: ann.y, width: ann.width, height: ann.height }}
           onPointerDown={onChromePointerDown}
           onDoubleClick={onChromeDoubleClick}
+          onContextMenu={onChromeContextMenu}
         />
       );
     }
@@ -1216,6 +1537,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           style={{ left: ann.x, top: ann.y, width: ann.width, height: edge }}
           onPointerDown={onChromePointerDown}
           onDoubleClick={onChromeDoubleClick}
+          onContextMenu={onChromeContextMenu}
         />
         <div
           data-roadmap-annotation=""
@@ -1229,6 +1551,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           }}
           onPointerDown={onChromePointerDown}
           onDoubleClick={onChromeDoubleClick}
+          onContextMenu={onChromeContextMenu}
         />
         <div
           data-roadmap-annotation=""
@@ -1237,6 +1560,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           style={{ left: ann.x, top: ann.y, width: edge, height: ann.height }}
           onPointerDown={onChromePointerDown}
           onDoubleClick={onChromeDoubleClick}
+          onContextMenu={onChromeContextMenu}
         />
         <div
           data-roadmap-annotation=""
@@ -1250,6 +1574,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           }}
           onPointerDown={onChromePointerDown}
           onDoubleClick={onChromeDoubleClick}
+          onContextMenu={onChromeContextMenu}
         />
       </div>
     );
@@ -1330,7 +1655,19 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
   }
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div
+      className="flex h-full w-full overflow-hidden"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (
+          !e.target.closest(
+            "[data-roadmap-node], [data-roadmap-annotation], [data-roadmap-frame-handle]"
+          )
+        ) {
+          closeContextMenu();
+        }
+      }}
+    >
       <RoadmapToolbox onAddNode={addNode} onAddAnnotation={addAnnotation} />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
@@ -1351,7 +1688,6 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
             {projectName ? (
               <span className="truncate font-medium text-zinc-700 dark:text-zinc-200">{projectName}</span>
             ) : null}
-            <p className="hidden text-zinc-500 sm:block">⌘S kaydet · ⌘D çoğalt</p>
             {projectId ? (
               <button
                 type="button"
@@ -1371,7 +1707,50 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
             ) : null}
           </div>
           <div className="flex items-center gap-2 text-zinc-500">
+            <div className="min-w-[5.5rem] shrink-0 text-right tabular-nums">
+              {saving && <span>Kaydediliyor…</span>}
+              {!saving && saveMsg === "Kaydedildi" && (
+                <span className="text-emerald-600 dark:text-emerald-400">Kaydedildi</span>
+              )}
+              {!saving && saveMsg && saveMsg !== "Kaydedildi" && (
+                <span className="text-rose-600 dark:text-rose-400">{saveMsg}</span>
+              )}
+              {!saving && !saveMsg && isDirty && <span>Kaydedilecek…</span>}
+            </div>
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!historyUi.canUndo}
+                title="Geri al (⌘Z)"
+                aria-label="Geri al"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path
+                    fillRule="evenodd"
+                    d="M7.707 3.293a1 1 0 010 1.414L5.414 7H11a7 7 0 017 7v2a1 1 0 11-2 0v-2a5 5 0 00-5-5H5.414l2.293 2.293a1 1 0 11-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!historyUi.canRedo}
+                title="İleri al (⌘⇧Z)"
+                aria-label="İleri al"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+                  <path
+                    fillRule="evenodd"
+                    d="M12.293 3.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 9H9a5 5 0 00-5 5v2a1 1 0 11-2 0v-2a7 7 0 017-7h5.586l-2.293-2.293a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+              <span className="mx-0.5 h-4 w-px bg-zinc-200 dark:bg-zinc-700" aria-hidden />
               <button
                 type="button"
                 onClick={zoomOut}
@@ -1414,36 +1793,65 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
               />
               <button
                 type="button"
-                onClick={() => setRevisionsOpen(true)}
-                title="Geçmiş"
-                aria-label="Geçmiş"
-                className="inline-flex h-7 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                onClick={() => setSiteTodoOpen(true)}
+                title="Todo"
+                aria-label="Todo"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
-                </svg>
-                <span className="hidden sm:inline">Geçmiş</span>
+                <TodoIcon className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={() => setSnapshotsOpen(true)}
-                title="Snapshots"
-                aria-label="Snapshots"
-                className="inline-flex h-7 items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
-                </svg>
-                <span className="hidden sm:inline">Snapshots</span>
-              </button>
-            </div>
-            <div className="w-[7.5rem] shrink-0 text-right tabular-nums">
-              {saving && <span>Kaydediliyor…</span>}
-              {!saving && saveMsg && (
-                <span className="text-emerald-600 dark:text-emerald-400">{saveMsg}</span>
-              )}
-              {!saving && !saveMsg && isDirty && <span>Kaydedilecek…</span>}
-              {!saving && !saveMsg && !isDirty && <span>Kaydedildi</span>}
+              <div ref={moreMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMoreMenuOpen((open) => !open)}
+                  title="Daha fazla"
+                  aria-label="Daha fazla"
+                  aria-expanded={moreMenuOpen}
+                  aria-haspopup="menu"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <circle cx="12" cy="5" r="1.75" />
+                    <circle cx="12" cy="12" r="1.75" />
+                    <circle cx="12" cy="19" r="1.75" />
+                  </svg>
+                </button>
+                {moreMenuOpen ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        setRevisionsOpen(true);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
+                      </svg>
+                      Geçmiş
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMoreMenuOpen(false);
+                        setSnapshotsOpen(true);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+                      </svg>
+                      Snapshots
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -1456,6 +1864,9 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
               "radial-gradient(circle, rgb(161 161 170 / 0.35) 1px, transparent 1px)",
           }}
           onPointerDown={startCanvasPan}
+          onContextMenu={(e) => {
+            e.preventDefault();
+          }}
         >
           <div
             className="relative"
@@ -1474,7 +1885,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                 transform: `scale(${zoom})`,
               }}
             >
-            {backBoxAnnotations.map(renderFrameVisual)}
+            {backBoxAnnotations.map((ann, index) => renderFrameVisual(ann, index))}
 
             <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full overflow-visible">
               {edges.map((edge) => {
@@ -1538,6 +1949,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                       strokeWidth={Math.max(14, ann.strokeWidth + 10)}
                       className="pointer-events-auto cursor-pointer"
                       onPointerDown={(e) => startAnnotationDrag(e, ann)}
+                      onContextMenu={(e) => openItemContextMenu(e, { annotationId: ann.id })}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         setSettingsAnnotationId(ann.id);
@@ -1559,7 +1971,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
               })}
             </svg>
 
-            {nodes.map((node) => {
+            {nodes.map((node, index) => {
               const isHovered = hoveredNodeId === node.id;
               const isSelected = selectedNodeIds.includes(node.id);
 
@@ -1567,9 +1979,16 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
                 <div
                   key={node.id}
                   data-roadmap-node=""
-                  className="absolute z-10 select-none"
-                  style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
+                  className="absolute select-none"
+                  style={{
+                    left: node.x,
+                    top: node.y,
+                    width: node.width,
+                    height: node.height,
+                    zIndex: 10 + index,
+                  }}
                   onPointerDown={(e) => startNodeDrag(e, node)}
+                  onContextMenu={(e) => openItemContextMenu(e, { nodeId: node.id })}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
                   onMouseLeave={() => setHoveredNodeId((id) => (id === node.id ? null : id))}
                 >
@@ -1617,7 +2036,7 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
               );
             })}
 
-            {frontAnnotations.map(renderBoxAnnotation)}
+            {frontAnnotations.map((ann, index) => renderBoxAnnotation(ann, index))}
 
             {!snapshotCaptureMode && backBoxAnnotations.map(renderFrameChrome)}
 
@@ -1640,6 +2059,15 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
           </div>
         </div>
       </div>
+
+      {contextMenu ? (
+        <RoadmapContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onAction={handleContextMenuAction}
+          onClose={closeContextMenu}
+        />
+      ) : null}
 
       <NodeSettingsModal
         node={settingsNode}
@@ -1669,6 +2097,8 @@ export default function RoadmapShell({ projectId = null, onBack, projectName }) 
         onSave={(patch) => applyVideoDraft(videoSettingsId, patch)}
         onDelete={deleteAnnotation}
       />
+
+      <SiteTodoModal open={siteTodoOpen} onClose={() => setSiteTodoOpen(false)} />
 
       {projectId ? (
         <RoadmapAddTodoModal

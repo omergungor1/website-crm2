@@ -30,6 +30,12 @@ function TabIcon({ tabKey, className }) {
           <path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z" />
         </svg>
       );
+    case "media-studio":
+      return (
+        <svg {...props}>
+          <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4zm-6 14c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+        </svg>
+      );
     case "todo-list":
       return (
         <svg {...props}>
@@ -156,6 +162,7 @@ function TabIcon({ tabKey, className }) {
 
 const MENU_ITEMS = [
   { key: "overview", label: "Ana Sayfa" },
+  { key: "media-studio", label: "Media Studio" },
   { key: "todo-list", label: "Todo List" },
   { key: "roadmap", label: "Roadmap" },
   {
@@ -229,13 +236,13 @@ const DEFAULT_PROJECT_TAB = "overview";
 
 const itemClass = (active) =>
   `flex w-full items-center gap-2.5 rounded-lg px-2 py-2 transition-colors sm:px-3 sm:py-2.5 ${active
-    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+    ? "bg-[var(--brand)] text-white"
     : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
   }`;
 
 const childClass = (active) =>
   `flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors sm:px-3 sm:py-2 ${active
-    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+    ? "bg-[var(--brand)] text-white"
     : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
   }`;
 
@@ -358,7 +365,7 @@ export default function ProjectNavSidebar({ activeTab, onNavigate, projectType =
   return (
     <aside className="w-[3.25rem] shrink-0 sm:w-52">
       <nav
-        className="sticky top-[calc(var(--dashboard-header-height)+1rem)] flex flex-col gap-0.5 rounded-xl border border-zinc-200 bg-white p-1 sm:p-1.5 dark:border-zinc-700 dark:bg-zinc-900"
+        className="sticky top-[calc(var(--dashboard-topbar-height)+1rem)] flex flex-col gap-0.5 rounded-xl border border-zinc-200 bg-white p-1 sm:p-1.5 dark:border-zinc-700 dark:bg-zinc-900"
         aria-label="Proje menüsü"
       >
         {menu.map((item) =>

@@ -1,12 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useEffect, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import ProjectSwitcher from "@/components/ProjectSwitcher";
 import SiteTodoModal from "@/components/SiteTodoModal";
+import DashboardSidebar from "@/components/DashboardSidebar";
+import { useDashboardChrome } from "@/components/DashboardChrome";
 import { useDeepWorkSessionOptional } from "@/components/deep-work/DeepWorkSessionProvider";
 
 function DefaultAvatarIcon({ className }) {
@@ -17,121 +17,50 @@ function DefaultAvatarIcon({ className }) {
   );
 }
 
-function ProjectsIcon({ className }) {
+function MenuIcon({ className }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" />
     </svg>
   );
 }
 
-function DeepWorkIcon({ className }) {
+function SidebarCollapseIcon({ collapsed, className }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm-7 7H3v4c0 1.1.9 2 2 2h4v-2H5v-4zM5 5h4V3H5c-1.1 0-2 .9-2 2v4h2V5zm14-2h-4v2h4v4h2V5c0-1.1-.9-2-2-2zm0 16h-4v2h4c1.1 0 2-.9 2-2v-4h-2v4z" />
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      {collapsed ? (
+        <path strokeLinecap="round" d="M9 8v8M12 12h6M15 9.5l2.5 2.5L15 14.5" />
+      ) : (
+        <path strokeLinecap="round" d="M9 8v8M15 12H9M11.5 9.5L9 12l2.5 2.5" />
+      )}
     </svg>
   );
-}
-
-function RoadmapIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M22 11V3h-7v3H9V3H2v8h7V8h2v10h4v3h7v-8h-7v3h-2V8h2v3z" />
-    </svg>
-  );
-}
-
-function CrmIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
-    </svg>
-  );
-}
-
-function TodoIcon({ className }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-    </svg>
-  );
-}
-
-function iconNavClass(active) {
-  return `inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${active
-    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-    }`;
-}
-
-function navLinkClass(active) {
-  return `flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors sm:px-3 ${active
-    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-    }`;
 }
 
 export default function DashboardHeader({ user, admin = false }) {
   const router = useRouter();
-  const pathname = usePathname();
   const menuRef = useRef(null);
-  const projectsMenuRef = useRef(null);
-  const projectsCloseTimer = useRef(null);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
   const [todoModalOpen, setTodoModalOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const session = useDeepWorkSessionOptional();
-
-
-  const isDeepWorkActive = pathname?.startsWith("/dashboard/deep-work");
-  const isRoadmapActive = pathname?.startsWith("/dashboard/roadmap");
-  const isProjectsActive =
-    !isDeepWorkActive &&
-    !isRoadmapActive &&
-    (pathname === "/dashboard" ||
-      pathname?.startsWith("/dashboard/") ||
-      pathname?.startsWith("/projects/"));
-  const isCrmActive = pathname === "/crm" || pathname?.startsWith("/crm/");
-
-  function openProjectsMenu() {
-    if (projectsCloseTimer.current) {
-      clearTimeout(projectsCloseTimer.current);
-      projectsCloseTimer.current = null;
-    }
-    setProjectsMenuOpen(true);
-  }
-
-  function closeProjectsMenu(delay = 120) {
-    if (projectsCloseTimer.current) clearTimeout(projectsCloseTimer.current);
-    projectsCloseTimer.current = setTimeout(() => {
-      setProjectsMenuOpen(false);
-      projectsCloseTimer.current = null;
-    }, delay);
-  }
+  const { collapsed, toggleCollapsed } = useDashboardChrome();
 
   useEffect(() => {
-    return () => {
-      if (projectsCloseTimer.current) clearTimeout(projectsCloseTimer.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!userMenuOpen && !projectsMenuOpen && !todoModalOpen) return;
+    if (!userMenuOpen && !todoModalOpen && !mobileNavOpen) return;
 
     function onKeyDown(e) {
       if (e.key === "Escape") {
         setUserMenuOpen(false);
-        setProjectsMenuOpen(false);
         setTodoModalOpen(false);
+        setMobileNavOpen(false);
       }
     }
 
     function onPointerDown(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setUserMenuOpen(false);
-      }
-      if (projectsMenuRef.current && !projectsMenuRef.current.contains(e.target)) {
-        setProjectsMenuOpen(false);
       }
     }
 
@@ -141,7 +70,7 @@ export default function DashboardHeader({ user, admin = false }) {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
     };
-  }, [userMenuOpen, projectsMenuOpen, todoModalOpen]);
+  }, [userMenuOpen, todoModalOpen, mobileNavOpen]);
 
   async function handleLogout() {
     const supabase = createClient();
@@ -152,220 +81,128 @@ export default function DashboardHeader({ user, admin = false }) {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-3 py-3 sm:px-6">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <Link
-            href="/dashboard"
-            className="flex min-w-0 items-center gap-2.5 sm:gap-3"
-            onClick={() => setUserMenuOpen(false)}
-          >
-            <Image
-              src="/logo.png"
-              alt=""
-              width={36}
-              height={36}
-              className="h-9 w-9 shrink-0 object-contain"
-              priority
-            />
-            <span className="truncate text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              AI Product OS
-            </span>
-          </Link>
+    <>
+      <DashboardSidebar
+        admin={admin}
+        mobileOpen={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        todoActive={todoModalOpen}
+        onOpenTodo={() => setTodoModalOpen(true)}
+      />
 
-
-          <nav className="flex shrink-0 items-center gap-1 border-l border-zinc-200 pl-2 dark:border-zinc-700 sm:pl-3">
-            <div
-              ref={projectsMenuRef}
-              className="relative"
-              onMouseEnter={openProjectsMenu}
-              onMouseLeave={() => closeProjectsMenu()}
-            >
-              <button
-                type="button"
-                className={navLinkClass(isProjectsActive)}
-                title="Projeler"
-                aria-expanded={projectsMenuOpen}
-                aria-haspopup="menu"
-                onClick={() => {
-                  setUserMenuOpen(false);
-                  setProjectsMenuOpen((open) => !open);
-                }}
-              >
-                <ProjectsIcon className="h-4 w-4 shrink-0" />
-                <span className="hidden sm:inline">Projeler</span>
-                <svg
-                  className={`h-3.5 w-3.5 shrink-0 opacity-60 transition-transform ${projectsMenuOpen ? "rotate-180" : ""}`}
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  aria-hidden
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-
-              <div
-                role="menu"
-                className={`absolute left-0 top-full z-50 pt-1 ${projectsMenuOpen ? "" : "hidden"}`}
-                aria-hidden={!projectsMenuOpen}
-                onMouseEnter={openProjectsMenu}
-                onMouseLeave={() => closeProjectsMenu()}
-              >
-                <div className="w-56 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                  <Suspense
-                    fallback={
-                      <p className="px-3 py-2 text-sm text-zinc-400">Yükleniyor…</p>
-                    }
-                  >
-                    <ProjectSwitcher
-                      onNavigate={() => {
-                        setProjectsMenuOpen(false);
-                        setUserMenuOpen(false);
-                      }}
-                    />
-                  </Suspense>
-                </div>
-              </div>
-            </div>
-            <Link
-              href="/dashboard/deep-work"
-              className={iconNavClass(isDeepWorkActive)}
-              title="Deep Work"
-              aria-label="Deep Work"
-              onClick={() => setUserMenuOpen(false)}
-            >
-              <DeepWorkIcon className="h-5 w-5" />
-            </Link>
+      <header className="sticky top-0 z-30 overflow-x-hidden border-b border-zinc-200/80 bg-white/90 backdrop-blur-md transition-[margin] duration-200 dark:border-zinc-800 dark:bg-zinc-900/90 md:ml-[var(--dashboard-sidebar-width)]">
+        <div className="flex h-[var(--dashboard-topbar-height)] min-w-0 items-center justify-between gap-3 px-3 sm:px-5">
+          <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
-              className={iconNavClass(todoModalOpen)}
-              title="Todo"
-              aria-label="Todo"
-              aria-expanded={todoModalOpen}
-              aria-haspopup="dialog"
-              onClick={() => {
-                setUserMenuOpen(false);
-                setProjectsMenuOpen(false);
-                setTodoModalOpen(true);
-              }}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 md:hidden"
+              aria-label="Menüyü aç"
+              onClick={() => setMobileNavOpen(true)}
             >
-              <TodoIcon className="h-5 w-5" />
+              <MenuIcon className="h-5 w-5" />
             </button>
-            <Link
-              href="/dashboard/roadmap"
-              className={iconNavClass(isRoadmapActive)}
-              title="RoadMap"
-              aria-label="RoadMap"
-              onClick={() => setUserMenuOpen(false)}
-            >
-              <RoadmapIcon className="h-5 w-5" />
-            </Link>
-            {admin && (
-              <Link
-                href="/crm"
-                className={iconNavClass(isCrmActive)}
-                title="Müşteri CRM"
-                aria-label="Müşteri CRM"
-                onClick={() => setUserMenuOpen(false)}
-              >
-                <CrmIcon className="h-5 w-5" />
-              </Link>
-            )}
-          </nav>
-        </div>
 
-        {user && (
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            {session?.hasSession && (
-              <div className="flex max-w-[14rem] items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 dark:border-emerald-900 dark:bg-emerald-950/40 sm:max-w-none sm:px-3">
-                <span
-                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                    session.isPaused ? "bg-amber-500" : "animate-pulse bg-emerald-500"
-                  }`}
-                />
-                <div className="min-w-0 hidden sm:block">
-                  <p className="font-mono text-xs font-semibold tabular-nums text-emerald-900 dark:text-emerald-200">
+            <button
+              type="button"
+              className="hidden h-9 w-9 items-center justify-center rounded-xl text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 md:inline-flex"
+              aria-label={collapsed ? "Menüyü genişlet" : "Menüyü daralt"}
+              title={collapsed ? "Menüyü genişlet" : "Menüyü daralt"}
+              onClick={toggleCollapsed}
+            >
+              <SidebarCollapseIcon collapsed={collapsed} className="h-5 w-5" />
+            </button>
+
+            <p className="hidden truncate text-sm text-zinc-500 md:block">
+              Ürün yol haritanı ve ekibini tek yerden yönet
+            </p>
+          </div>
+
+          {user ? (
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              {session?.hasSession ? (
+                <div className="flex max-w-[14rem] items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 dark:border-emerald-900 dark:bg-emerald-950/40 sm:max-w-none sm:px-3">
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      session.isPaused ? "bg-amber-500" : "animate-pulse bg-emerald-500"
+                    }`}
+                  />
+                  <div className="hidden min-w-0 sm:block">
+                    <p className="font-mono text-xs font-semibold tabular-nums text-emerald-900 dark:text-emerald-200">
+                      {session.timerLabel}
+                    </p>
+                    <div className="mt-0.5 h-1 w-20 overflow-hidden rounded-full bg-emerald-200/80 dark:bg-emerald-900">
+                      <div
+                        className="h-full rounded-full bg-emerald-600 dark:bg-emerald-400"
+                        style={{ width: `${Math.min(100, session.progress.percent)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <p className="font-mono text-xs font-semibold tabular-nums text-emerald-900 dark:text-emerald-200 sm:hidden">
                     {session.timerLabel}
                   </p>
-                  <div className="mt-0.5 h-1 w-20 overflow-hidden rounded-full bg-emerald-200/80 dark:bg-emerald-900">
-                    <div
-                      className="h-full rounded-full bg-emerald-600 dark:bg-emerald-400"
-                      style={{ width: `${Math.min(100, session.progress.percent)}%` }}
-                    />
-                  </div>
-                </div>
-                <p className="font-mono text-xs font-semibold tabular-nums text-emerald-900 dark:text-emerald-200 sm:hidden">
-                  {session.timerLabel}
-                </p>
-                <p className="hidden text-[10px] text-emerald-700/80 dark:text-emerald-300/80 md:block">
-                  kalan {session.remainingLabel}
-                </p>
-                <button
-                  type="button"
-                  disabled={session.busy}
-                  onClick={() => session.togglePause()}
-                  className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-emerald-800 hover:bg-white dark:bg-emerald-900/60 dark:text-emerald-100"
-                  title={session.isPaused ? "Devam" : "Duraklat"}
-                >
-                  {session.isPaused ? "▶" : "❚❚"}
-                </button>
-                <Link
-                  href="/dashboard/deep-work?tab=board"
-                  className="hidden rounded-full px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 hover:underline dark:text-emerald-300 lg:inline"
-                >
-                  Deep Work
-                </Link>
-              </div>
-            )}
-
-            <div ref={menuRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setUserMenuOpen((o) => !o)}
-              aria-expanded={userMenuOpen}
-              aria-haspopup="menu"
-              aria-label="Hesap menüsü"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-200 text-zinc-600 transition-colors hover:bg-zinc-300 dark:bg-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-600"
-            >
-              <DefaultAvatarIcon className="h-5 w-5" />
-            </button>
-
-            {userMenuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-              >
-                <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Hesap</p>
-                  <p className="mt-1 break-all text-sm font-medium text-zinc-900 dark:text-zinc-50">
-                    {user.email}
-                  </p>
-                </div>
-                <div className="p-1">
                   <button
                     type="button"
-                    role="menuitem"
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    disabled={session.busy}
+                    onClick={() => session.togglePause()}
+                    className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-medium text-emerald-800 hover:bg-white dark:bg-emerald-900/60 dark:text-emerald-100"
+                    title={session.isPaused ? "Devam" : "Duraklat"}
                   >
-                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                      <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
-                    </svg>
-                    Çıkış
+                    {session.isPaused ? "▶" : "❚❚"}
                   </button>
+                  <Link
+                    href="/dashboard/deep-work?tab=board"
+                    className="hidden rounded-full px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 hover:underline dark:text-emerald-300 lg:inline"
+                  >
+                    Deep Work
+                  </Link>
                 </div>
+              ) : null}
+
+              <div ref={menuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((o) => !o)}
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label="Hesap menüsü"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)] transition-colors hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-950"
+                >
+                  <DefaultAvatarIcon className="h-5 w-5" />
+                </button>
+
+                {userMenuOpen ? (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+                  >
+                    <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
+                      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Hesap</p>
+                      <p className="mt-1 break-all text-sm font-medium text-zinc-900 dark:text-zinc-50">
+                        {user.email}
+                      </p>
+                    </div>
+                    <div className="p-1">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={handleLogout}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                      >
+                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5-5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
+                        </svg>
+                        Çıkış
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            )}
             </div>
-          </div>
-        )}
-      </div>
+          ) : null}
+        </div>
+      </header>
 
       <SiteTodoModal open={todoModalOpen} onClose={() => setTodoModalOpen(false)} />
-    </header>
+    </>
   );
 }
