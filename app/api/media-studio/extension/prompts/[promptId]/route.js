@@ -8,7 +8,9 @@ export async function PATCH(request, { params }) {
   if (!token) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anon =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) return NextResponse.json({ error: "Yapılandırma eksik" }, { status: 500 });
 
   const supabase = createClient(url, anon, {

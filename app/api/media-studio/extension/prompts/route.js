@@ -6,7 +6,9 @@ function clientFromAuthHeader(request) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!token) return { supabase: null, token: null };
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anon =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anon) return { supabase: null, token: null };
   const supabase = createClient(url, anon, {
     global: { headers: { Authorization: `Bearer ${token}` } },
