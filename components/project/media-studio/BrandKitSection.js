@@ -1,6 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ms } from "./theme";
+
+const COLOR_LABELS = {
+  primary: "Ana",
+  secondary: "İkincil",
+  accent: "Vurgu",
+  background: "Arka plan",
+  text: "Metin",
+};
+
+const CONTACT_FIELDS = [
+  { key: "website", label: "Web sitesi / domain", placeholder: "ornek.com" },
+  { key: "instagram", label: "Instagram", placeholder: "@kullaniciadi" },
+  { key: "tiktok", label: "TikTok", placeholder: "@kullaniciadi" },
+  { key: "x", label: "X (Twitter)", placeholder: "@kullaniciadi" },
+  { key: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/company/…" },
+  { key: "youtube", label: "YouTube", placeholder: "@kanal" },
+  { key: "facebook", label: "Facebook", placeholder: "facebook.com/…" },
+  { key: "phone", label: "Telefon", placeholder: "+90 5xx xxx xx xx" },
+  { key: "email", label: "E-posta", placeholder: "info@ornek.com" },
+];
 
 const EMPTY = {
   display_name: "",
@@ -18,13 +39,14 @@ const EMPTY = {
   keywords: "",
   prohibited_terms: "",
   guidelines: "",
+  contact: {},
 };
 
 export default function BrandKitSection({ projectId, projectName }) {
   const [form, setForm] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState({ text: "", ok: true });
 
   useEffect(() => {
     let cancelled = false;
@@ -47,6 +69,7 @@ export default function BrandKitSection({ projectId, projectName }) {
               ? data.prohibited_terms.join(", ")
               : "",
             guidelines: data.guidelines || "",
+            contact: data.contact || {},
           });
         } else {
           setForm({ ...EMPTY, display_name: projectName || "" });
@@ -61,10 +84,15 @@ export default function BrandKitSection({ projectId, projectName }) {
     };
   }, [projectId, projectName]);
 
+  const set = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
+  const setColor = (key, value) => setForm((p) => ({ ...p, colors: { ...p.colors, [key]: value } }));
+  const setContact = (key) => (e) =>
+    setForm((p) => ({ ...p, contact: { ...p.contact, [key]: e.target.value } }));
+
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true);
-    setMsg("");
+    setMsg({ text: "", ok: true });
     const res = await fetch(`/api/projects/${projectId}/media-studio/brand-kit`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -75,162 +103,127 @@ export default function BrandKitSection({ projectId, projectName }) {
         personality: form.personality.trim() || null,
         visual_style: form.visual_style.trim() || null,
         slogan: form.slogan.trim() || null,
-        keywords: form.keywords
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-        prohibited_terms: form.prohibited_terms
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
+        keywords: form.keywords.split(",").map((s) => s.trim()).filter(Boolean),
+        prohibited_terms: form.prohibited_terms.split(",").map((s) => s.trim()).filter(Boolean),
         guidelines: form.guidelines.trim() || null,
+        contact: form.contact,
       }),
     });
     const data = await res.json();
     setSaving(false);
-    setMsg(res.ok ? "Marka kiti kaydedildi" : data.error || "Hata oluştu");
-    if (res.ok) setTimeout(() => setMsg(""), 3000);
+    setMsg({ text: res.ok ? "Marka kiti kaydedildi" : data.error || "Hata oluştu", ok: res.ok });
+    if (res.ok) setTimeout(() => setMsg({ text: "", ok: true }), 3000);
   }
 
-  const inputCls =
-    "mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100";
-
   if (loading) {
-    return <div className="py-6 text-center text-sm text-zinc-400">Marka kiti yükleniyor…</div>;
+    return <div className={`${ms.card} text-center ${ms.muted}`}>Marka kiti yükleniyor…</div>;
   }
 
   return (
-    <form
-      onSubmit={handleSave}
-      className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"
-    >
+    <form onSubmit={handleSave} className={`${ms.card} space-y-6`}>
       <div>
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Marka Kiti</h3>
-        <p className="mt-1 text-xs text-zinc-500">
-          Media Studio prompt üretiminde otomatik kullanılır.
-        </p>
+        <h3 className={ms.title}>Marka Kiti</h3>
+        <p className={`mt-1 ${ms.muted}`}>Media Studio prompt üretiminde otomatik kullanılır.</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Marka adı</span>
-          <input
-            className={inputCls}
-            value={form.display_name}
-            onChange={(e) => setForm((p) => ({ ...p, display_name: e.target.value }))}
-          />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className={ms.label}>Marka adı</span>
+          <input className={ms.input} value={form.display_name} onChange={set("display_name")} />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Slogan</span>
-          <input
-            className={inputCls}
-            value={form.slogan}
-            onChange={(e) => setForm((p) => ({ ...p, slogan: e.target.value }))}
-          />
+        <label className="block">
+          <span className={ms.label}>Slogan</span>
+          <input className={ms.input} value={form.slogan} onChange={set("slogan")} />
         </label>
       </div>
 
       <div>
-        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Renkler</p>
-        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <span className={ms.label}>Renkler</span>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {Object.entries(form.colors).map(([key, value]) => (
-            <label key={key} className="block text-xs">
-              <span className="capitalize text-zinc-500">{key}</span>
-              <div className="mt-1 flex items-center gap-2">
+            <label
+              key={key}
+              className="flex items-center gap-2 rounded-full bg-[#f4f4f4] p-1.5 pr-3 dark:bg-[#212121]"
+            >
+              <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full ring-1 ring-black/10 dark:ring-white/15">
                 <input
                   type="color"
                   value={value || "#000000"}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, colors: { ...p.colors, [key]: e.target.value } }))
-                  }
-                  className="h-9 w-9 cursor-pointer rounded border border-zinc-200 bg-white p-0.5 dark:border-zinc-600"
+                  onChange={(e) => setColor(key, e.target.value)}
+                  className="absolute -inset-2 h-12 w-12 cursor-pointer border-0 p-0"
                 />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] text-[#5d5d5d] dark:text-[#b4b4b4]">
+                  {COLOR_LABELS[key] || key}
+                </span>
                 <input
-                  className={`${inputCls} mt-0 font-mono text-xs`}
                   value={value || ""}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, colors: { ...p.colors, [key]: e.target.value } }))
-                  }
+                  onChange={(e) => setColor(key, e.target.value)}
+                  className="w-full bg-transparent font-mono text-xs text-[#0d0d0d] outline-none dark:text-[#ececec]"
                 />
-              </div>
+              </span>
             </label>
           ))}
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Ton</span>
-          <input
-            className={inputCls}
-            value={form.tone}
-            onChange={(e) => setForm((p) => ({ ...p, tone: e.target.value }))}
-            placeholder="Modern, samimi…"
-          />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <label className="block">
+          <span className={ms.label}>Ton</span>
+          <input className={ms.input} value={form.tone} onChange={set("tone")} placeholder="Modern, samimi…" />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Kişilik</span>
-          <input
-            className={inputCls}
-            value={form.personality}
-            onChange={(e) => setForm((p) => ({ ...p, personality: e.target.value }))}
-          />
+        <label className="block">
+          <span className={ms.label}>Kişilik</span>
+          <input className={ms.input} value={form.personality} onChange={set("personality")} placeholder="Güvenilir, yenilikçi…" />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Görsel stil</span>
-          <input
-            className={inputCls}
-            value={form.visual_style}
-            onChange={(e) => setForm((p) => ({ ...p, visual_style: e.target.value }))}
-          />
+        <label className="block">
+          <span className={ms.label}>Görsel stil</span>
+          <input className={ms.input} value={form.visual_style} onChange={set("visual_style")} placeholder="Minimal, 3D, editorial…" />
         </label>
       </div>
 
-      <label className="block text-sm">
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">Anahtar kelimeler</span>
-        <input
-          className={inputCls}
-          value={form.keywords}
-          onChange={(e) => setForm((p) => ({ ...p, keywords: e.target.value }))}
-          placeholder="virgülle ayırın"
-        />
-      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block">
+          <span className={ms.label}>Anahtar kelimeler</span>
+          <input className={ms.input} value={form.keywords} onChange={set("keywords")} placeholder="virgülle ayırın" />
+        </label>
+        <label className="block">
+          <span className={ms.label}>Yasaklı ifadeler</span>
+          <input className={ms.input} value={form.prohibited_terms} onChange={set("prohibited_terms")} placeholder="virgülle ayırın" />
+        </label>
+      </div>
 
-      <label className="block text-sm">
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">Yasaklı ifadeler</span>
-        <input
-          className={inputCls}
-          value={form.prohibited_terms}
-          onChange={(e) => setForm((p) => ({ ...p, prohibited_terms: e.target.value }))}
-          placeholder="virgülle ayırın"
-        />
-      </label>
+      <div className={ms.subtleCard}>
+        <p className={ms.title}>İletişim & sosyal hesaplar</p>
+        <p className={`mt-1 ${ms.muted}`}>
+          Görsellerin alt kısmındaki footer satırında kullanılır. Boş bırakılan alanlar eklenmez.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {CONTACT_FIELDS.map((field) => (
+            <label key={field.key} className="block">
+              <span className={ms.label}>{field.label}</span>
+              <input
+                className={`${ms.input} bg-white dark:bg-[#2f2f2f]`}
+                value={form.contact[field.key] || ""}
+                onChange={setContact(field.key)}
+                placeholder={field.placeholder}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
 
-      <label className="block text-sm">
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">Ek kurallar</span>
-        <textarea
-          rows={3}
-          className={`${inputCls} resize-none`}
-          value={form.guidelines}
-          onChange={(e) => setForm((p) => ({ ...p, guidelines: e.target.value }))}
-        />
+      <label className="block">
+        <span className={ms.label}>Ek kurallar</span>
+        <textarea rows={3} className={`${ms.textarea} resize-none`} value={form.guidelines} onChange={set("guidelines")} />
       </label>
 
       <div className="flex items-center justify-between gap-2">
-        {msg ? (
-          <span
-            className={`text-sm ${msg.includes("Hata") || msg.includes("oluştu") ? "text-red-600" : "text-emerald-600"}`}
-          >
-            {msg}
-          </span>
-        ) : (
-          <span />
-        )}
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-        >
+        <span className={`text-sm ${msg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+          {msg.text}
+        </span>
+        <button type="submit" disabled={saving} className={ms.primary}>
           {saving ? "Kaydediliyor…" : "Marka kitini kaydet"}
         </button>
       </div>

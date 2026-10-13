@@ -34,9 +34,9 @@ chrome.runtime.onInstalled.addListener(() => {
           y: 80,
           width: 380,
           height: 560,
-          projectId: null,
+          projectId: "all",
           filter: "pending",
-          layoutVersion: 2,
+          layoutVersion: 3,
         },
       });
     }

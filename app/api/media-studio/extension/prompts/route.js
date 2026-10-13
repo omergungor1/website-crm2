@@ -29,37 +29,48 @@ export async function GET(request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const projectId = searchParams.get("projectId");
+  const rawProjectId = searchParams.get("projectId");
+  const projectId = rawProjectId && rawProjectId !== "all" ? rawProjectId : null;
   const status = searchParams.get("status") || "pending";
-  if (!projectId) {
-    return NextResponse.json({ error: "projectId gerekli" }, { status: 400 });
-  }
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, user_id, name")
-    .eq("id", projectId)
-    .single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userData.user.id)
+    .maybeSingle();
+  const isAdmin = profile?.role === "admin";
 
-  if (!project || project.user_id !== userData.user.id) {
-    // admin bypass via profiles role
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", userData.user.id)
+  let projectIds = null;
+  if (projectId) {
+    const { data: project } = await supabase
+      .from("projects")
+      .select("id, user_id")
+      .eq("id", projectId)
       .maybeSingle();
-    if (profile?.role !== "admin") {
+    if (!project || (!isAdmin && project.user_id !== userData.user.id)) {
       return NextResponse.json({ error: "Erişim yok" }, { status: 403 });
     }
+    projectIds = [projectId];
+  } else if (!isAdmin) {
+    const { data: ownProjects, error: projectsError } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("user_id", userData.user.id)
+      .eq("is_archived", false);
+    if (projectsError) return NextResponse.json({ error: projectsError.message }, { status: 500 });
+    projectIds = (ownProjects || []).map((p) => p.id);
+    if (!projectIds.length) return NextResponse.json([]);
   }
 
   let query = supabase
     .from("media_prompts")
-    .select("id, title, prompt_text, status, sequence_number, target_platform, media_type, media_content_ideas(title, content_type)")
-    .eq("project_id", projectId)
+    .select(
+      "id, project_id, title, prompt_text, status, sequence_number, target_platform, media_type, metadata, media_content_ideas(title, content_type), projects(name)"
+    )
     .order("updated_at", { ascending: false })
-    .limit(50);
+    .limit(projectId ? 50 : 100);
 
+  if (projectIds) query = query.in("project_id", projectIds);
   if (status !== "all") query = query.eq("status", status);
 
   const { data, error } = await query;

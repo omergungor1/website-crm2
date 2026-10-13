@@ -3,6 +3,18 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/isAdmin";
 import { getProjectAccess } from "@/lib/mediaStudio/access";
 
+const CONTACT_KEYS = ["website", "instagram", "tiktok", "x", "linkedin", "youtube", "facebook", "phone", "email"];
+
+function sanitizeContact(raw) {
+  const contact = {};
+  if (!raw || typeof raw !== "object") return contact;
+  for (const key of CONTACT_KEYS) {
+    const value = typeof raw[key] === "string" ? raw[key].trim().slice(0, 200) : "";
+    if (value) contact[key] = value;
+  }
+  return contact;
+}
+
 export async function GET(_request, { params }) {
   const { id: projectId } = await params;
   const supabase = await createClient();
@@ -45,6 +57,7 @@ export async function PUT(request, { params }) {
     keywords: Array.isArray(body.keywords) ? body.keywords : [],
     prohibited_terms: Array.isArray(body.prohibited_terms) ? body.prohibited_terms : [],
     guidelines: body.guidelines ?? null,
+    contact: sanitizeContact(body.contact),
     updated_at: new Date().toISOString(),
   };
 

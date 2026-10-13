@@ -19,21 +19,14 @@
   const defaultFilter =
     host.includes("gemini") || host.includes("labs.google") ? "pending" : "pending";
 
-  const hostHint = host.includes("chatgpt") || host.includes("openai")
-    ? "chatgpt"
-    : host.includes("gemini")
-      ? "gemini"
-      : host.includes("labs.google")
-        ? "google_flow"
-        : "all";
-
   function send(type, payload = {}) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({ type, ...payload }, resolve);
     });
   }
 
-  const PANEL_LAYOUT_VERSION = 2;
+  const PANEL_LAYOUT_VERSION = 3;
+  const ALL_PROJECTS = "all";
   const EDGE_GAP = 20;
   const MINIMIZED_WIDTH = 240;
   const MINIMIZED_HEIGHT = 52;
@@ -46,19 +39,23 @@
     y: 80,
     width: 380,
     height: 560,
-    projectId: null,
+    projectId: ALL_PROJECTS,
     filter: defaultFilter,
   };
-  if (panelState.layoutVersion !== PANEL_LAYOUT_VERSION) {
-    panelState = {
-      ...panelState,
-      x: null,
-      width: Math.max(panelState.width || 0, 380),
-      height: Math.max(panelState.height || 0, 560),
-      layoutVersion: PANEL_LAYOUT_VERSION,
-    };
+  const storedVersion = panelState.layoutVersion || 1;
+  if (storedVersion < PANEL_LAYOUT_VERSION) {
+    if (storedVersion < 2) {
+      panelState = {
+        ...panelState,
+        x: null,
+        width: Math.max(panelState.width || 0, 380),
+        height: Math.max(panelState.height || 0, 560),
+      };
+    }
+    panelState = { ...panelState, projectId: ALL_PROJECTS, layoutVersion: PANEL_LAYOUT_VERSION };
     send("SET_PANEL_STATE", { panelState });
   }
+  if (!panelState.projectId) panelState.projectId = ALL_PROJECTS;
   let authSession = initial?.authSession || null;
 
   const hostEl = document.createElement("div");
@@ -170,23 +167,17 @@
     render();
     try {
       projects = await api("/api/media-studio/extension/projects");
-      if (!panelState.projectId && projects[0]) {
-        panelState.projectId = projects[0].id;
+      if (
+        panelState.projectId !== ALL_PROJECTS &&
+        !projects.some((p) => p.id === panelState.projectId)
+      ) {
+        panelState.projectId = ALL_PROJECTS;
         saveState();
       }
-      if (panelState.projectId) {
-        const status = panelState.filter || "pending";
-        prompts = await api(
-          `/api/media-studio/extension/prompts?projectId=${panelState.projectId}&status=${status}`
-        );
-        if (hostHint !== "all") {
-          prompts = prompts.filter(
-            (p) => p.target_platform === hostHint || p.media_type === (hostHint === "chatgpt" ? "image" : "video") || true
-          );
-        }
-      } else {
-        prompts = [];
-      }
+      const status = panelState.filter || "pending";
+      prompts = await api(
+        `/api/media-studio/extension/prompts?projectId=${encodeURIComponent(panelState.projectId)}&status=${status}`
+      );
     } catch (err) {
       error = err.message || "Veri alınamadı";
     } finally {
@@ -267,12 +258,14 @@
   }
 
   function renderList() {
+    const showProject = panelState.projectId === ALL_PROJECTS;
     const cards = prompts
       .map((p) => {
         const text = p.prompt_text || "";
         const preview = text.length > 220 ? `${text.slice(0, 220)}…` : text;
         const typeLabel = TYPE_LABELS[p.media_content_ideas?.content_type] || "";
         const platform = PLATFORM_LABELS[p.target_platform] || p.target_platform || "";
+        const headline = p.metadata?.onImageText?.headline || "";
         return `
       <article class="ms-card">
         <div class="ms-card-head">
@@ -280,9 +273,11 @@
           <span class="ms-seq">#${p.sequence_number || 1}</span>
         </div>
         <div class="ms-chips">
+          ${showProject && p.projects?.name ? `<span class="ms-chip ms-chip-neutral">${escapeHtml(p.projects.name)}</span>` : ""}
           ${platform ? `<span class="ms-chip">${escapeHtml(platform)}</span>` : ""}
           ${typeLabel ? `<span class="ms-chip">${escapeHtml(typeLabel)}</span>` : ""}
         </div>
+        ${headline ? `<p class="ms-headline"><span>H1</span>${escapeHtml(headline)}</p>` : ""}
         <p class="ms-preview">${escapeHtml(preview)}</p>
         <div class="ms-card-actions">
           <button class="ms-btn ms-primary" data-copy="${p.id}">${ICONS.copy}<span>Kopyala</span></button>
@@ -301,6 +296,7 @@
       <div class="ms-toolbar">
         <div class="ms-project-row">
           <select class="ms-select ms-project" id="ms-project" aria-label="Proje">
+            <option value="${ALL_PROJECTS}" ${showProject ? "selected" : ""}>Tüm projeler</option>
             ${projects
               .map(
                 (p) =>

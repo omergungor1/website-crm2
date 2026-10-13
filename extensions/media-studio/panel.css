@@ -264,6 +264,25 @@
   font-size: 11px;
   font-weight: 500;
 }
+.ms-chip-neutral { background: rgba(255, 255, 255, 0.06); color: var(--ms-muted); }
+.ms-headline {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 0;
+  color: var(--ms-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ms-headline span {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ms-accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+}
 .ms-preview {
   margin: 10px 0 0;
   color: var(--ms-muted);

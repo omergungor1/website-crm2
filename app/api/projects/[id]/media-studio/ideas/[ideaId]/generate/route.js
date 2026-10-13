@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/isAdmin";
 import { getProjectAccess } from "@/lib/mediaStudio/access";
 import { generateMediaStudioPrompts } from "@/lib/mediaStudio/generate";
 
+export const maxDuration = 60;
+
 export async function POST(_request, { params }) {
   const { id: projectId, ideaId } = await params;
   const supabase = await createClient();

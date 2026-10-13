@@ -2,22 +2,52 @@
 
 import { useMemo, useState } from "react";
 import { CONTENT_TYPES } from "@/lib/mediaStudio/constants";
+import { ms } from "./theme";
 
-const inputCls =
-  "mt-1 w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100";
+function Toggle({ checked, onChange, label, hint }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center justify-between gap-3 rounded-3xl bg-[#f4f4f4] px-4 py-3 text-left transition hover:bg-[#ececec] dark:bg-[#212121] dark:hover:bg-[#262626]"
+    >
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-[#0d0d0d] dark:text-[#ececec]">{label}</span>
+        {hint ? <span className="mt-0.5 block text-xs text-[#5d5d5d] dark:text-[#b4b4b4]">{hint}</span> : null}
+      </span>
+      <span
+        className={`relative h-6 w-10 shrink-0 rounded-full transition ${
+          checked ? "bg-[#0285ff]" : "bg-black/15 dark:bg-white/20"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+            checked ? "left-[18px]" : "left-0.5"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
 
 export default function CreateContentForm({ projectId, onCreated }) {
   const [contentType, setContentType] = useState("post");
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
   const [platform, setPlatform] = useState("instagram");
-  const [tone, setTone] = useState("modern");
+  const [tone, setTone] = useState("");
   const [language, setLanguage] = useState("tr");
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [slideCount, setSlideCount] = useState(5);
   const [storyCount, setStoryCount] = useState(3);
   const [videoTarget, setVideoTarget] = useState("google_flow");
   const [freeOutput, setFreeOutput] = useState("image");
+  const [headline, setHeadline] = useState("");
+  const [cta, setCta] = useState("");
+  const [textOnImage, setTextOnImage] = useState(true);
+  const [showFooter, setShowFooter] = useState(true);
   const [applyBrand, setApplyBrand] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -31,6 +61,16 @@ export default function CreateContentForm({ projectId, onCreated }) {
     return ["1:1", "4:5", "9:16", "16:9"];
   }, [contentType]);
 
+  const producesVideo =
+    contentType === "video" || (contentType === "free" && freeOutput !== "image");
+  const producesImage = contentType !== "video" && !(contentType === "free" && freeOutput === "video");
+
+  function selectType(id) {
+    setContentType(id);
+    if (id === "story" || id === "video") setAspectRatio("9:16");
+    else setAspectRatio("1:1");
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
@@ -38,19 +78,19 @@ export default function CreateContentForm({ projectId, onCreated }) {
     try {
       const settings = {
         platform,
-        tone,
+        tone: tone.trim() || null,
         language,
         aspectRatio,
         applyBrandKit: applyBrand,
+        textOnImage,
+        showFooter: textOnImage && showFooter,
+        headline: headline.trim() || null,
+        cta: cta.trim() || null,
       };
       if (contentType === "carousel") settings.slideCount = Number(slideCount) || 5;
       if (contentType === "story") settings.storyCount = Number(storyCount) || 1;
-      if (contentType === "video") settings.targetPlatform = videoTarget;
-      if (contentType === "free") {
-        settings.output = freeOutput;
-        settings.targetPlatform =
-          freeOutput === "video" || freeOutput === "both" ? videoTarget : "chatgpt";
-      }
+      if (producesVideo) settings.targetPlatform = videoTarget;
+      if (contentType === "free") settings.output = freeOutput;
 
       const createRes = await fetch(`/api/projects/${projectId}/media-studio/ideas`, {
         method: "POST",
@@ -72,11 +112,13 @@ export default function CreateContentForm({ projectId, onCreated }) {
         `/api/projects/${projectId}/media-studio/ideas/${idea.id}/generate`,
         { method: "POST" }
       );
-      const genData = await genRes.json();
+      const genData = await genRes.json().catch(() => ({}));
       if (!genRes.ok) throw new Error(genData.error || "Prompt üretilemedi");
 
       setTitle("");
       setBrief("");
+      setHeadline("");
+      setCta("");
       onCreated?.(genData);
     } catch (err) {
       setError(err.message || "Hata oluştu");
@@ -87,90 +129,67 @@ export default function CreateContentForm({ projectId, onCreated }) {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"
-    >
+    <form onSubmit={handleSubmit} className={`${ms.card} space-y-5`}>
       <div>
-        <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Yeni içerik</h3>
-        <p className="mt-1 text-xs text-zinc-500">Tür seç, brief yaz, AI promptlarını üret.</p>
+        <h3 className={ms.title}>Yeni içerik</h3>
+        <p className={`mt-1 ${ms.muted}`}>
+          Tür seç, brief yaz; AI detaylı görsel ve video promptlarını üretsin.
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {CONTENT_TYPES.map((type) => (
-          <button
-            key={type.id}
-            type="button"
-            onClick={() => {
-              setContentType(type.id);
-              if (type.id === "story") setAspectRatio("9:16");
-              else if (type.id === "post") setAspectRatio("1:1");
-            }}
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-              contentType === type.id
-                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300"
-            }`}
-          >
+          <button key={type.id} type="button" onClick={() => selectType(type.id)} className={ms.pill(contentType === type.id)}>
             {type.label}
           </button>
         ))}
       </div>
 
-      <label className="block text-sm">
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">Başlık (opsiyonel)</span>
-        <input
-          className={inputCls}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Örn. Ürün lansman carousel"
-        />
+      <label className="block">
+        <span className={ms.label}>Başlık (opsiyonel)</span>
+        <input className={ms.input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Örn. Ürün lansman carousel" />
       </label>
 
-      <label className="block text-sm">
-        <span className="font-medium text-zinc-700 dark:text-zinc-300">Hakkında / Brief</span>
+      <label className="block">
+        <span className={ms.label}>Hakkında / Brief</span>
         <textarea
           required
           rows={5}
-          className={`${inputCls} resize-y`}
+          className={`${ms.textarea} resize-y`}
           value={brief}
           onChange={(e) => setBrief(e.target.value)}
-          placeholder="Ürünümüzü tanıtan modern ve dikkat çekici bir içerik hazırla…"
+          placeholder="Ne anlatmak istiyorsun? Ürün, hedef kitle, kampanya, öne çıkan fayda, istenen his…"
         />
       </label>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Platform</span>
-          <select className={inputCls} value={platform} onChange={(e) => setPlatform(e.target.value)}>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <label className="block">
+          <span className={ms.label}>Platform</span>
+          <select className={ms.input} value={platform} onChange={(e) => setPlatform(e.target.value)}>
             <option value="instagram">Instagram</option>
             <option value="tiktok">TikTok</option>
             <option value="linkedin">LinkedIn</option>
             <option value="youtube">YouTube</option>
-            <option value="ads">Ads</option>
+            <option value="ads">Reklam (Meta/Google)</option>
           </select>
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Ton</span>
-          <input className={inputCls} value={tone} onChange={(e) => setTone(e.target.value)} />
+        <label className="block">
+          <span className={ms.label}>Ton</span>
+          <input className={ms.input} value={tone} onChange={(e) => setTone(e.target.value)} placeholder="Modern, enerjik…" />
         </label>
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Dil</span>
-          <select className={inputCls} value={language} onChange={(e) => setLanguage(e.target.value)}>
+        <label className="block">
+          <span className={ms.label}>Dil</span>
+          <select className={ms.input} value={language} onChange={(e) => setLanguage(e.target.value)}>
             <option value="tr">Türkçe</option>
             <option value="en">English</option>
           </select>
         </label>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Oran</span>
-          <select
-            className={inputCls}
-            value={aspectRatio}
-            onChange={(e) => setAspectRatio(e.target.value)}
-          >
+      <div className="grid gap-4 sm:grid-cols-3">
+        <label className="block">
+          <span className={ms.label}>Oran</span>
+          <select className={ms.input} value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
             {typeOptions.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
@@ -180,81 +199,91 @@ export default function CreateContentForm({ projectId, onCreated }) {
         </label>
 
         {contentType === "carousel" ? (
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">Slayt sayısı</span>
-            <input
-              type="number"
-              min={3}
-              max={10}
-              className={inputCls}
-              value={slideCount}
-              onChange={(e) => setSlideCount(e.target.value)}
-            />
+          <label className="block">
+            <span className={ms.label}>Slayt sayısı</span>
+            <input type="number" min={3} max={10} className={ms.input} value={slideCount} onChange={(e) => setSlideCount(e.target.value)} />
           </label>
         ) : null}
 
         {contentType === "story" ? (
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">Story adedi</span>
-            <input
-              type="number"
-              min={1}
-              max={8}
-              className={inputCls}
-              value={storyCount}
-              onChange={(e) => setStoryCount(e.target.value)}
-            />
+          <label className="block">
+            <span className={ms.label}>Story adedi</span>
+            <input type="number" min={1} max={8} className={ms.input} value={storyCount} onChange={(e) => setStoryCount(e.target.value)} />
           </label>
         ) : null}
 
-        {contentType === "video" || contentType === "free" ? (
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">Video hedefi</span>
-            <select
-              className={inputCls}
-              value={videoTarget}
-              onChange={(e) => setVideoTarget(e.target.value)}
-            >
+        {contentType === "free" ? (
+          <label className="block">
+            <span className={ms.label}>Çıktı</span>
+            <select className={ms.input} value={freeOutput} onChange={(e) => setFreeOutput(e.target.value)}>
+              <option value="image">Görsel (ChatGPT)</option>
+              <option value="video">Video</option>
+              <option value="both">Görsel + Video</option>
+            </select>
+          </label>
+        ) : null}
+
+        {producesVideo ? (
+          <label className="block">
+            <span className={ms.label}>Video aracı</span>
+            <select className={ms.input} value={videoTarget} onChange={(e) => setVideoTarget(e.target.value)}>
               <option value="google_flow">Google Flow</option>
               <option value="gemini">Gemini</option>
             </select>
           </label>
         ) : null}
-
-        {contentType === "free" ? (
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700 dark:text-zinc-300">Çıktı</span>
-            <select
-              className={inputCls}
-              value={freeOutput}
-              onChange={(e) => setFreeOutput(e.target.value)}
-            >
-              <option value="image">Görsel prompt</option>
-              <option value="video">Video prompt</option>
-              <option value="both">İkisi de</option>
-            </select>
-          </label>
-        ) : null}
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-        <input
-          type="checkbox"
-          checked={applyBrand}
-          onChange={(e) => setApplyBrand(e.target.checked)}
-          className="rounded border-zinc-300"
+      {producesImage ? (
+        <p className={`-mt-1 ml-1 ${ms.muted}`}>Görseller ChatGPT görsel üretimi için hazırlanır.</p>
+      ) : null}
+
+      <div className="space-y-2">
+        <Toggle
+          checked={textOnImage}
+          onChange={setTextOnImage}
+          label="Görsele metin yaz"
+          hint="H1 başlık, alt başlık ve CTA tipografi hiyerarşisiyle tasarıma eklenir."
         />
-        Marka kitini uygula
-      </label>
+        {textOnImage ? (
+          <>
+            <div className="grid gap-4 px-1 pt-2 sm:grid-cols-2">
+              <label className="block">
+                <span className={ms.label}>H1 başlık (opsiyonel)</span>
+                <input className={ms.input} value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Boş bırakırsan AI yazar" />
+              </label>
+              <label className="block">
+                <span className={ms.label}>CTA (opsiyonel)</span>
+                <input className={ms.input} value={cta} onChange={(e) => setCta(e.target.value)} placeholder="Örn. Hemen keşfet" />
+              </label>
+            </div>
+            <Toggle
+              checked={showFooter}
+              onChange={setShowFooter}
+              label="Alt bilgi satırı (footer)"
+              hint="Marka kitindeki web sitesi, sosyal hesaplar ve iletişim bilgileri görselin altına eklenir."
+            />
+          </>
+        ) : null}
+        <Toggle
+          checked={applyBrand}
+          onChange={setApplyBrand}
+          label="Marka kitini uygula"
+          hint="Renkler, ton, stil ve iletişim bilgileri prompta dahil edilir."
+        />
+      </div>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? (
+        <p className="rounded-3xl border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-600 dark:text-red-400">
+          {error}
+        </p>
+      ) : null}
 
-      <button
-        type="submit"
-        disabled={saving || generating || !brief.trim()}
-        className="rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-      >
-        {saving ? "Kaydediliyor…" : generating ? "Promptlar üretiliyor…" : "Oluştur ve üret"}
+      <button type="submit" disabled={saving || generating || !brief.trim()} className={`${ms.primary} w-full py-3`}>
+        {saving || generating ? (
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+        ) : null}
+        {saving ? "Kaydediliyor…" : generating ? "Detaylı promptlar üretiliyor…" : "Oluştur ve üret"}
       </button>
     </form>
   );
