@@ -9,7 +9,9 @@
     "https://chat.openai.com/*",
     "https://gemini.google.com/*",
     "https://labs.google/*",
-    "https://*.supabase.co/*"
+    "https://*.supabase.co/*",
+    "https://ekip.websitealsat.com/*",
+    "http://localhost:3000/*"
   ],
   "background": {
     "service_worker": "background.js",

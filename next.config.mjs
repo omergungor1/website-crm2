@@ -8,6 +8,9 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  outputFileTracingIncludes: {
+    "/api/media-studio/extension/download": ["./extensions/media-studio/**/*"],
+  },
 };
 
 export default nextConfig;

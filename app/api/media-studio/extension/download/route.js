@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/isAdmin";
 import path from "path";
 import fs from "fs/promises";
+import os from "os";
 import { spawnSync } from "child_process";
 
 export async function GET() {
@@ -11,7 +12,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Yetkisiz" }, { status: 401 });
 
   const extDir = path.join(process.cwd(), "extensions", "media-studio");
-  const tmpDir = path.join(process.cwd(), ".tmp", `media-studio-ext-${Date.now()}`);
+  const tmpDir = path.join(os.tmpdir(), `media-studio-ext-${Date.now()}`);
   const zipPath = `${tmpDir}.zip`;
 
   try {
@@ -24,6 +25,14 @@ export async function GET() {
       const stat = await fs.stat(src);
       if (stat.isDirectory()) continue;
       let content = await fs.readFile(src, "utf8");
+      if (name === "manifest.json" && process.env.NEXT_PUBLIC_APP_URL) {
+        const manifest = JSON.parse(content);
+        const appPattern = `${new URL(process.env.NEXT_PUBLIC_APP_URL).origin}/*`;
+        const hosts = new Set(manifest.host_permissions || []);
+        hosts.add(appPattern);
+        manifest.host_permissions = [...hosts];
+        content = JSON.stringify(manifest, null, 2);
+      }
       if (name === "config.js") {
         content = `export const APP_ORIGIN = ${JSON.stringify(process.env.NEXT_PUBLIC_APP_URL || "")};
 export const SUPABASE_URL = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || "")};
